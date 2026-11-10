@@ -5,3 +5,6 @@ __pycache__/
 
 # Raw dataset (~700MB of rasters); download separately
 data/
+.venv/
+*.keras
+*.h5
