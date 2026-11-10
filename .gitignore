@@ -1,0 +1,7 @@
+tips.txt
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Raw dataset (~700MB of rasters); download separately
+data/
