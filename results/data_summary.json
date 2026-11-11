@@ -1,0 +1,36 @@
+{
+  "split": "train",
+  "n_chips": 252,
+  "n_events": 10,
+  "n_pixels": 66060288,
+  "n_valid_px": 57303407,
+  "n_water_px": 5447035,
+  "water_share_of_valid_px": 0.095056040908702,
+  "n_label_nodata_px": 8756881,
+  "label_nodata_share": 0.13255892859564888,
+  "n_nan_image_px": 1325136,
+  "nan_image_share": 0.020059494745163692,
+  "n_nan_image_px_with_valid_label": 24150,
+  "chips_no_water": 32,
+  "chips_water_below_1pct": 89,
+  "chips_water_below_5pct": 159,
+  "median_chip_water_frac": 0.024871692137446815,
+  "chips_without_any_sar_data": 0,
+  "clip_db": [
+    -35.0,
+    5.0
+  ],
+  "n_finite_values": 129470304,
+  "n_below_clip": 555687,
+  "n_above_clip": 31455,
+  "min_db": -79.16144561767578,
+  "max_db": 29.926393508911133,
+  "chips_per_water_class": {
+    "no water": 32,
+    "up to 1%": 57,
+    "1 to 5%": 70,
+    "5 to 25%": 66,
+    "25 to 50%": 14,
+    "over 50%": 12
+  }
+}

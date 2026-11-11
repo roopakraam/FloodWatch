@@ -1,50 +1,53 @@
-"""Per-channel mean/std on the training chips -> results/norm_stats.json.
+"""Per-channel mean / std on the TRAINING chips only -> results/norm_stats.json.
 
-Channels: VV, VH (clipped to [-35, 5] dB) and VV - VH (dB difference, computed after clipping).
+Channels: VV and VH clipped to [-35, 5] dB, and VV - VH computed from the clipped values (the same
+`compute_channels` every model input goes through). NaN pixels are ignored. Sums are accumulated in
+float64, so the result does not depend on chip order or on float32 round-off.
+
+Only the training split is touched: statistics that feed the model must not see validation or test data.
+
 Run from the project root:  python -m src.norm_stats
 """
 import json
 
 import numpy as np
 
-from src.data import ROOT, list_split, load_chip
+from src.data import load_split
+from src.preprocess import CHANNELS, CLIP_DB, NORM_JSON, compute_channels
 
 SPLIT = "train"
-CLIP_DB = (-35.0, 5.0)
-CHANNELS = ["VV", "VH", "VV_minus_VH"]
-OUT_JSON = ROOT / "results" / "norm_stats.json"
 
 
-def compute_channels(image):
-    """(2, H, W) [VV, VH] dB image (NaNs kept) -> (3, H, W) [VV, VH, VV - VH], clipped first."""
-    vv, vh = np.clip(image, *CLIP_DB)
-    return np.stack([vv, vh, vv - vh]).astype(np.float32)
+def compute_norm_stats(images):
+    """(N, 2, H, W) raw dB images -> dict with per-channel mean / std / pixel count (NaN ignored)."""
+    n = np.zeros(len(CHANNELS), dtype=np.int64)
+    s1 = np.zeros(len(CHANNELS), dtype=np.float64)
+    s2 = np.zeros(len(CHANNELS), dtype=np.float64)
+    for image in images:  # chip by chip keeps memory flat
+        ch = compute_channels(image).astype(np.float64).reshape(len(CHANNELS), -1)
+        ok = ~np.isnan(ch)
+        ch = np.where(ok, ch, 0.0)
+        n += ok.sum(axis=1)
+        s1 += ch.sum(axis=1)
+        s2 += (ch * ch).sum(axis=1)
+    mean = s1 / n
+    std = np.sqrt(s2 / n - mean**2)  # population std, as np.nanstd
+    return {"mean": mean.tolist(), "std": std.tolist(), "n_pixels": n.tolist()}
 
 
 def main():
-    pairs = list_split(SPLIT)
-    # Per-channel buffers of non-NaN values; ~0.8 GB total for 252 chips.
-    values = [[] for _ in CHANNELS]
-    for s1_path, label_path in pairs:
-        image, _ = load_chip(s1_path, label_path, nan_value=None)
-        for c, ch in enumerate(compute_channels(image)):
-            values[c].append(ch[~np.isnan(ch)])  # np.nanmean on the stacked values == ignoring NaN
-
-    flat = [np.concatenate(v) for v in values]
-    mean = [float(np.nanmean(x)) for x in flat]
-    std = [float(np.nanstd(x)) for x in flat]
-
+    data = load_split(SPLIT)
     out = {
         "split": SPLIT,
         "clip_db": list(CLIP_DB),
-        "n_chips": len(pairs),
-        "channels": CHANNELS,
-        "mean": mean,
-        "std": std,
+        "n_chips": len(data.names),
+        "channels": list(CHANNELS),
+        **compute_norm_stats(data.images),
     }
-    OUT_JSON.parent.mkdir(exist_ok=True)
-    OUT_JSON.write_text(json.dumps(out, indent=2))
+    NORM_JSON.parent.mkdir(exist_ok=True)
+    NORM_JSON.write_text(json.dumps(out, indent=2) + "\n")
     print(json.dumps(out, indent=2))
+    print("wrote", NORM_JSON)
 
 
 if __name__ == "__main__":

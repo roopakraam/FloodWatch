@@ -1,0 +1,63 @@
+{
+  "s1_files_on_disk": 446,
+  "label_files_on_disk": 446,
+  "chips_per_split": {
+    "train": 252,
+    "val": 89,
+    "test": 90,
+    "bolivia": 15
+  },
+  "chips_expected_per_split": {
+    "train": 252,
+    "val": 89,
+    "test": 90,
+    "bolivia": 15
+  },
+  "chips_in_all_splits": 446,
+  "unique_chips_in_all_splits": 446,
+  "files_listed_but_missing": [],
+  "pairs_with_different_chip_ids": [],
+  "chips_in_more_than_one_split": [],
+  "chips_on_disk_not_in_any_split": [],
+  "events_per_split": {
+    "train": {
+      "Ghana": 31,
+      "India": 40,
+      "Mekong": 18,
+      "Nigeria": 10,
+      "Pakistan": 16,
+      "Paraguay": 39,
+      "Somalia": 15,
+      "Spain": 18,
+      "Sri-Lanka": 24,
+      "USA": 41
+    },
+    "val": {
+      "Ghana": 11,
+      "India": 14,
+      "Mekong": 6,
+      "Nigeria": 4,
+      "Pakistan": 6,
+      "Paraguay": 14,
+      "Somalia": 5,
+      "Spain": 6,
+      "Sri-Lanka": 9,
+      "USA": 14
+    },
+    "test": {
+      "Ghana": 11,
+      "India": 14,
+      "Mekong": 6,
+      "Nigeria": 4,
+      "Pakistan": 6,
+      "Paraguay": 14,
+      "Somalia": 6,
+      "Spain": 6,
+      "Sri-Lanka": 9,
+      "USA": 14
+    },
+    "bolivia": {
+      "Bolivia": 15
+    }
+  }
+}
