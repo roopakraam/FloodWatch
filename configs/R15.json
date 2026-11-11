@@ -1,0 +1,7 @@
+{
+  "run_id": "R15",
+  "config_name": "Dice loss",
+  "study": "E2",
+  "seed": 2,
+  "loss": "dice"
+}

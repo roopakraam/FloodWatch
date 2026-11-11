@@ -1,0 +1,7 @@
+{
+  "run_id": "R21",
+  "config_name": "MobileNetV2 + ImageNet",
+  "study": "E3",
+  "seed": 2,
+  "encoder": "mobilenetv2_imagenet"
+}

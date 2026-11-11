@@ -1,0 +1,7 @@
+{
+  "run_id": "R06",
+  "config_name": "VH only",
+  "study": "E1",
+  "seed": 2,
+  "channels": "vh"
+}

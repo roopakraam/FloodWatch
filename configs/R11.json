@@ -1,0 +1,7 @@
+{
+  "run_id": "R11",
+  "config_name": "BCE loss",
+  "study": "E2",
+  "seed": 1,
+  "loss": "bce"
+}
