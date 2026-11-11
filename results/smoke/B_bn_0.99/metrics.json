@@ -1,0 +1,40 @@
+{
+  "run_id": "smoke-B",
+  "training": {
+    "epochs_trained": 5,
+    "max_epochs": 5,
+    "stopped_early": false,
+    "best_epoch": 5,
+    "best_val_water_iou": 0.5989474058151245,
+    "final_learning_rate": 0.0010000000474974513,
+    "sec_per_epoch": 10.73,
+    "sec_first_epoch": 115.48,
+    "train_minutes": 3.0,
+    "peak_gpu_memory_mb": 622.5,
+    "parameters": 5419473,
+    "trainable_parameters": 5386577,
+    "peak_host_ram_mb": 4448
+  },
+  "val": {
+    "n_chips": 89,
+    "iou": 0.5989505747876817,
+    "precision": 0.7789062601750335,
+    "recall": 0.7216385376328709,
+    "f1": 0.749179598459088,
+    "mean_chip_iou": 0.37021110941291463,
+    "chips_in_mean": 82,
+    "chips_skipped": 7,
+    "tp": 1614742,
+    "fp": 458347,
+    "fn": 622863,
+    "observed_only": {
+      "iou": 0.6005583265287988,
+      "precision": 0.7824769284130163,
+      "recall": 0.7209159530764977,
+      "f1": 0.7504360404425323,
+      "mean_chip_iou": 0.37101624355885315
+    },
+    "n_valid_px": 20294725,
+    "n_valid_px_no_sar": 20571
+  }
+}

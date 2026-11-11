@@ -1,0 +1,5 @@
+epoch  1/5 | loss 1.0578  iou 0.3842 | val_loss 1.2291  val_iou 0.0000 | lr 1.0e-03 | 329.4s *
+epoch  2/5 | loss 0.8597  iou 0.4323 | val_loss 1.3698  val_iou 0.0000 | lr 1.0e-03 |  14.3s
+epoch  3/5 | loss 0.7520  iou 0.4610 | val_loss 1.4380  val_iou 0.0000 | lr 1.0e-03 |  12.8s
+epoch  4/5 | loss 0.6875  iou 0.4955 | val_loss 1.5453  val_iou 0.0000 | lr 1.0e-03 |  13.5s
+epoch  5/5 | loss 0.6777  iou 0.4788 | val_loss 1.5485  val_iou 0.0000 | lr 1.0e-03 |  13.5s
