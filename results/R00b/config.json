@@ -1,0 +1,11 @@
+{
+  "run_id": "R00b",
+  "config_name": "Tuned VH threshold",
+  "study": "E0 (extra)",
+  "method": "global VH threshold tuned on the training labels",
+  "rule": "water where VH < threshold; NaN is never water",
+  "threshold_db": -23.6,
+  "threshold_source": "threshold between -30 and -10 dB (0.05 dB steps) with the highest pooled water IoU on the 252 training chips",
+  "channels": "vh",
+  "trainable_parameters": 0
+}

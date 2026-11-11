@@ -1,0 +1,11 @@
+{
+  "run_id": "R00",
+  "config_name": "Otsu (E0)",
+  "study": "E0",
+  "method": "global Otsu threshold on VH",
+  "rule": "water where VH < threshold; NaN is never water",
+  "threshold_db": -19.95,
+  "threshold_source": "Otsu on the pooled VH histogram of the 252 training chips (0.1 dB bins, clipped to [-35, 5] dB); no labels used",
+  "channels": "vh",
+  "trainable_parameters": 0
+}
