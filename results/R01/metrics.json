@@ -1,0 +1,40 @@
+{
+  "run_id": "R01",
+  "training": {
+    "epochs_trained": 39,
+    "max_epochs": 60,
+    "stopped_early": true,
+    "best_epoch": 24,
+    "best_val_water_iou": 0.6281595826148987,
+    "final_learning_rate": 6.25000029685907e-05,
+    "sec_per_epoch": 8.64,
+    "sec_first_epoch": 61.25,
+    "train_minutes": 6.86,
+    "peak_gpu_memory_mb": 622.5,
+    "parameters": 5419473,
+    "trainable_parameters": 5386577,
+    "peak_host_ram_mb": 4104
+  },
+  "val": {
+    "n_chips": 89,
+    "iou": 0.6281645764702467,
+    "precision": 0.8509025515816876,
+    "recall": 0.7058573787598794,
+    "f1": 0.771622949606318,
+    "mean_chip_iou": 0.3759889570849311,
+    "chips_in_mean": 81,
+    "chips_skipped": 8,
+    "tp": 1579430,
+    "fp": 276752,
+    "fn": 658175,
+    "observed_only": {
+      "iou": 0.6298695883099155,
+      "precision": 0.8517282835444786,
+      "recall": 0.7074402811752927,
+      "f1": 0.7729079588055329,
+      "mean_chip_iou": 0.3768108524320937
+    },
+    "n_valid_px": 20294725,
+    "n_valid_px_no_sar": 20571
+  }
+}
