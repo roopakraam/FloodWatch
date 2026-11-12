@@ -12,10 +12,14 @@ figure (src/viz.py).
     cost              parameters, time per training step, time per predicted chip, GPU memory per encoder
     per_event         pooled IoU per flood event: thresholds against the best U-Net
     qualitative       VH, hand label, Otsu and the best U-Net on six test / Bolivia chips, two of them failures
-    water_fraction    per-chip IoU of the best U-Net against the chip's water share
+    error_budget      the wrong pixels of the best U-Net by category, test and Bolivia
+    failure_examples  one example chip per failure group: VH, hand label, Otsu and the best U-Net
+    unet_vs_otsu      per-chip IoU of the best U-Net against Otsu, and against the chip's water share
+    water_brightness  VH of the labelled water in the training chips, the test chips and Bolivia
 
-The qualitative figure needs the predicted masks of the best run. They are computed once (this
-imports TensorFlow and uses the GPU) and cached in results/<run>/predictions_<split>.npz.
+The last four draw from tables written by the error analysis (notebooks/10_error_analysis.ipynb) and are
+skipped until those exist. The two image grids need the predicted masks of the best run. They are
+computed once (this imports TensorFlow and uses the GPU) and cached in results/<run>/predictions_<split>.npz.
 """
 if __package__ in (None, ""):  # allow `python src/make_figures.py`
     import sys
@@ -25,14 +29,15 @@ if __package__ in (None, ""):  # allow `python src/make_figures.py`
 
 import argparse
 import json
+import textwrap
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from src import analysis, viz
+from src import analysis, error_analysis, viz
 from src.config import RESULTS_DIR, STUDIES, run_dir, runs_of
-from src.data import ROOT, WATER, load_split
+from src.data import ROOT, load_split
 
 FIG_DIR = ROOT / "figures" / "report"
 BASELINES = ("Otsu (E0)", "Tuned VH threshold")
@@ -45,6 +50,11 @@ def best_run():
     return json.loads(path.read_text())["run_id"] if path.exists() else "R01"
 
 
+def threshold_db(run_id):
+    """The VH threshold (dB) of one of the two threshold rules, R00 (Otsu) or R00b (tuned)."""
+    return json.loads((run_dir(run_id) / "metrics.json").read_text())["threshold_db"]
+
+
 # ---- predictions of one run, cached -----------------------------------------------------------------------
 
 def predicted_masks(run_id, split):
@@ -53,8 +63,7 @@ def predicted_masks(run_id, split):
     if run_id in analysis.THRESHOLD_RUNS:
         from src.otsu_baseline import predict
 
-        threshold = json.loads((run_dir(run_id) / "metrics.json").read_text())["threshold_db"]
-        return predict(data.images, threshold).astype(bool)
+        return predict(data.images, threshold_db(run_id)).astype(bool)
     cache = run_dir(run_id) / f"predictions_{split}.npz"
     if cache.exists():
         with np.load(cache) as z:
@@ -136,9 +145,9 @@ def fig_cost():
         return None
     cost = pd.read_csv(path, index_col=0)
     panels = (("Parameters (millions)", "Parameters", "million", "{:.2f}"),
-              ("Training step (ms), benchmark", "Time per training step", "ms (batch of 8 crops)", "{:.0f}"),
-              ("Inference per chip (ms), benchmark", "Time per predicted chip", "ms (512×512 pixels)", "{:.1f}"),
-              ("Peak GPU memory, training (MB), benchmark", "Peak GPU memory in training", "MB", "{:.0f}"))
+              ("Training step (ms), benchmark", "Training step", "ms (batch of 8 crops)", "{:.0f}"),
+              ("Inference per chip (ms), benchmark", "Prediction per chip", "ms (512×512 pixels)", "{:.1f}"),
+              ("Peak GPU memory, training (MB), benchmark", "GPU memory, training", "MB", "{:.0f}"))
     fig, axes = plt.subplots(1, 4, figsize=(7.4, 2.25), sharey=True)
     names = list(cost.index)
     for ax, (column, title, unit, fmt) in zip(axes, panels):
@@ -187,8 +196,8 @@ def fig_per_event():
     labels = [f"{e}  ({int(unet.loc[e, 'chips'])} chips)" for e in order]
     ax.set_yticks(range(len(order)), labels)
     ax.axhline(len(order) - 1.5, color=viz.AXIS, linewidth=0.8)
-    ax.annotate("held-out flood", (0.995, len(order) - 1.42), xycoords=("axes fraction", "data"), ha="right", va="top",
-                fontsize=7.5, color=viz.MUTED)
+    ax.annotate("held-out flood", (0.995, len(order) - 1.42), xycoords=("axes fraction", "data"), ha="right",
+                va="bottom", fontsize=7.5, color=viz.MUTED)
     ax.set_xlim(0, 1)
     ax.set_ylim(-0.6, len(order) - 0.4)
     ax.set_xlabel("pooled water IoU of the event's chips")
@@ -198,76 +207,173 @@ def fig_per_event():
     return viz.savefig(fig, FIG_DIR / "per_event.png")
 
 
-# ---- 5. qualitative grid ------------------------------------------------------------------------------------
+# ---- 5. qualitative grid and failure examples ---------------------------------------------------------------
 
-def pick_qualitative_chips(run):
-    """Six chips by a fixed rule, from the best U-Net's own per-chip scores:
-    two failures (lowest IoU among test chips with at least 2% water), three test chips at the 50th, 75th
-    and 95th percentile of IoU, and the median Bolivia chip."""
-    chips = pd.read_csv(run_dir(run) / "per_chip.csv")
-    test = chips[(chips["split"] == "test") & (chips["water_frac"] >= 0.02)].sort_values("iou").reset_index(drop=True)
-    bolivia = chips[(chips["split"] == "bolivia") & (chips["water_frac"] >= 0.02)].sort_values("iou").reset_index(drop=True)
-    idx = [0, 1] + [int(round(q * (len(test) - 1))) for q in (0.50, 0.75, 0.95)]
-    picks = [("test", test.loc[i, "chip"]) for i in idx] + [("bolivia", bolivia.loc[len(bolivia) // 2, "chip"])]
-    return picks
+def chip_grid(rows, run, path):
+    """One row per chip: VH, the hand label, Otsu against the label and the U-Net against the label.
 
-
-def fig_qualitative():
-    run = best_run()
-    if not (run_dir(run) / "best.keras").exists() or "test" not in json.loads((run_dir(run) / "metrics.json").read_text()):
-        return None
-    picks = pick_qualitative_chips(run)
+    `rows` is a list of (chip name, note); the note is printed under the chip name at the left of its row.
+    """
+    scores = {rid: pd.read_csv(run_dir(rid) / "per_chip.csv").set_index("chip") for rid in ("R00", run)}
     data = {s: load_split(s) for s in ("test", "bolivia")}
     masks = {(rid, s): predicted_masks(rid, s) for rid in ("R00", run) for s in ("test", "bolivia")}
-    scores = {rid: pd.read_csv(run_dir(rid) / "per_chip.csv").set_index("chip") for rid in ("R00", run)}
 
-    fig, axes = plt.subplots(len(picks), 4, figsize=(7.0, 1.78 * len(picks)))
-    for row, (split, name) in enumerate(picks):
+    fig, axes = plt.subplots(len(rows), 4, figsize=(5.6, 1.46 * len(rows)), squeeze=False)
+    for row, (name, note) in enumerate(rows):
+        split = scores[run].loc[name, "split"]
         i = data[split].names.index(name)
         image, label = data[split].images[i], data[split].labels[i]
-        share = (label == WATER).sum() / max((label != -1).sum(), 1)
         viz.show_db(axes[row, 0], image[1], "VH")
         viz.show_label(axes[row, 1], label)
         viz.show_errors(axes[row, 2], masks[("R00", split)][i], label)
         viz.show_errors(axes[row, 3], masks[(run, split)][i], label)
-        tag = "failure" if row < 2 else ("Bolivia" if split == "bolivia" else "test")
-        axes[row, 0].set_ylabel(f"{name.replace('_', ' ')}\n{tag}, {share:.0%} water", fontsize=7.5, color=viz.INK_2)
-        axes[row, 2].set_xlabel(f"IoU {scores['R00'].loc[name, 'iou']:.2f}", fontsize=7.5, color=viz.INK_2, labelpad=2)
-        axes[row, 3].set_xlabel(f"IoU {scores[run].loc[name, 'iou']:.2f}", fontsize=7.5, color=viz.INK_2, labelpad=2)
+        axes[row, 0].set_ylabel(f"{name.replace('_', ' ')}\n{textwrap.fill(note, 24)}", fontsize=6.5, color=viz.INK_2)
+        for col, rid in ((2, "R00"), (3, run)):
+            iou = scores[rid].loc[name, "iou"]
+            axes[row, col].set_xlabel(f"IoU {iou:.2f}", fontsize=7, color=viz.INK_2, labelpad=2)
     for ax, title in zip(axes[0], ("VH (dB)", "hand label", "Otsu threshold", f"U-Net ({run})")):
-        ax.set_title(title, fontsize=8.5, fontweight="bold", color=viz.INK, loc="center", pad=4)
-    fig.legend(handles=viz.error_legend_handles(), loc="lower center", ncol=5, bbox_to_anchor=(0.5, -0.012), fontsize=7.5)
+        ax.set_title(title, fontsize=8, fontweight="bold", color=viz.INK, loc="center", pad=4)
+    fig.legend(handles=viz.error_legend_handles(), loc="lower center", ncol=5, bbox_to_anchor=(0.5, -0.012), fontsize=7,
+               handlelength=1.4, columnspacing=1.2)
     fig.tight_layout(rect=(0, 0.02, 1, 1), h_pad=0.5, w_pad=0.3)
-    return viz.savefig(fig, FIG_DIR / "qualitative.png")
+    return viz.savefig(fig, path)
 
 
-# ---- 6. IoU against the amount of water ----------------------------------------------------------------------
+QUALITATIVE_PERCENTILES = (0.10, 0.25, 0.50, 0.75, 0.95)
 
-def fig_water_fraction():
+
+def pick_qualitative_chips(run):
+    """Six chips by a fixed rule, from the best U-Net's own per-chip scores: the test chips at the 10th, 25th,
+    50th, 75th and 95th percentile of IoU among those with at least 2% water, and the median Bolivia chip.
+    Returns a list of (split, chip name)."""
+    chips = pd.read_csv(run_dir(run) / "per_chip.csv")
+    chips = chips[chips["water_frac"] >= 0.02].sort_values("iou")
+    test = chips[chips["split"] == "test"].reset_index(drop=True)
+    bolivia = chips[chips["split"] == "bolivia"].reset_index(drop=True)
+    picks = [("test", test.loc[int(round(q * (len(test) - 1))), "chip"]) for q in QUALITATIVE_PERCENTILES]
+    return picks + [("bolivia", bolivia.loc[len(bolivia) // 2, "chip"])]
+
+
+def _has_scored_model(run):
+    metrics = run_dir(run) / "metrics.json"
+    return (run_dir(run) / "best.keras").exists() and metrics.exists() and "test" in json.loads(metrics.read_text())
+
+
+def fig_qualitative():
     run = best_run()
-    path = run_dir(run) / "per_chip.csv"
+    if not _has_scored_model(run):
+        return None
+    scores = pd.read_csv(run_dir(run) / "per_chip.csv").set_index("chip")
+    rows = []
+    for split, name in pick_qualitative_chips(run):
+        iou, share = scores.loc[name, "iou"], scores.loc[name, "water_frac"]
+        tag = "unseen flood" if split == "bolivia" else ("test, failure" if iou < error_analysis.FAILURE_IOU else "test")
+        rows.append((name, f"{tag}, {share:.0%} water"))
+    return chip_grid(rows, run, FIG_DIR / "qualitative.png")
+
+
+def fig_failure_examples():
+    """One example per failure group (the chip with the group's lowest IoU), from results/failure_groups.csv."""
+    run = best_run()
+    path = RESULTS_DIR / "failure_groups.csv"
+    if not path.exists() or not _has_scored_model(run):
+        return None
+    groups = pd.read_csv(path)
+    rows = [(chip, group.split(" (")[0]) for group, chip in zip(groups["Failure group"], groups["Example chip"])]
+    return chip_grid(rows, run, FIG_DIR / "failure_examples.png")
+
+
+# ---- 6. where the wrong pixels are ---------------------------------------------------------------------------
+
+def fig_error_budget():
+    """Wrong pixels of the best U-Net per error category, from results/<run>/error_categories.csv."""
+    run = best_run()
+    path = run_dir(run) / "error_categories.csv"
     if not path.exists():
         return None
-    chips = pd.read_csv(path)
-    chips = chips[chips["split"].isin(["test", "bolivia"]) & (chips["n_water"] > 0)]
+    table = pd.read_csv(path)
+    colors = ([viz.MISSED_COLOR] * len(error_analysis.MISS_CATEGORIES)
+              + [viz.FALSE_ALARM_COLOR] * len(error_analysis.ALARM_CATEGORIES))
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 3.4), sharey=True)
+    for ax, split, title in ((axes[0], "test", "Test chips"), (axes[1], "bolivia", "Bolivia chips")):
+        budget = error_analysis.error_budget(table[table["split"] == split])
+        thousands = budget["pixels"].to_numpy() / 1e3
+        ax.barh(range(len(budget)), thousands, height=0.55, color=colors, zorder=2)
+        for y, (value, share) in enumerate(zip(thousands, budget["share of all errors"])):
+            ax.text(value + thousands.max() * 0.02, y, f"{share:.0%}", va="center", fontsize=8, color=viz.INK)
+        ax.set_xlim(0, thousands.max() * 1.18)
+        ax.set_title(title)
+        ax.set_xlabel(f"wrong pixels of the U-Net ({run}), thousands")
+        ax.grid(axis="y", visible=False)
+        ax.set_ylim(len(budget) - 0.4, -0.6)
+    axes[0].set_yticks(range(len(budget)), budget.index)
+    fig.tight_layout()
+    return viz.savefig(fig, FIG_DIR / "error_budget.png")
+
+
+# ---- 7. chip by chip: the U-Net against Otsu, and against the amount of water ----------------------------------
+
+def fig_unet_vs_otsu():
+    run = best_run()
+    if not (run_dir(run) / "per_chip.csv").exists():
+        return None
+    chips = pd.read_csv(run_dir(run) / "per_chip.csv")
+    chips = chips[chips["split"].isin(["test", "bolivia"])].copy()
+    chips["otsu_iou"] = chips["chip"].map(pd.read_csv(run_dir("R00") / "per_chip.csv").set_index("chip")["iou"])
+    chips = chips.dropna(subset=["iou", "otsu_iou"])   # the IoU is undefined where there is no water and none predicted
     if chips.empty:
         return None
-    fig, ax = plt.subplots(figsize=(5.2, 3.1))
+    fig, axes = plt.subplots(1, 2, figsize=(9.6, 3.6))
     for split, color, label in (("test", viz.BLUE, "test chips"), ("bolivia", viz.ORANGE, "Bolivia chips")):
         c = chips[chips["split"] == split]
-        ax.scatter(c["water_frac"].clip(lower=2e-5), c["iou"], s=24, color=color, edgecolor=viz.SURFACE, linewidth=0.7,
-                   label=label, zorder=3)
-    ax.set_xscale("log")
-    ax.set_xlabel("water share of the chip's labelled pixels (log scale)")
-    ax.set_ylabel(f"per-chip IoU, U-Net ({run})")
-    ax.set_ylim(-0.03, 1.03)
-    ax.legend(loc="upper left")
+        axes[0].scatter(c["otsu_iou"], c["iou"], s=24, color=color, edgecolor=viz.SURFACE, linewidth=0.7, label=label,
+                        zorder=3)
+        axes[1].scatter(c["water_frac"].clip(lower=2e-5), c["iou"], s=24, color=color, edgecolor=viz.SURFACE,
+                        linewidth=0.7, zorder=3)
+    axes[0].plot([0, 1], [0, 1], color=viz.AXIS, linewidth=1)
+    axes[0].set_xlabel("per-chip IoU, Otsu threshold")
+    axes[0].set_ylabel(f"per-chip IoU, U-Net ({run})")
+    axes[0].set_title("Above the line the U-Net is better")
+    axes[0].set_xlim(-0.03, 1.03)
+    axes[0].set_ylim(-0.03, 1.03)
+    axes[0].legend(loc="lower right")
+    axes[1].set_xscale("log")
+    axes[1].set_xlabel("water share of the chip's labelled pixels (log scale)")
+    axes[1].set_title("Low scores sit on chips with little water")
+    axes[1].set_ylim(-0.03, 1.03)
     fig.tight_layout()
-    return viz.savefig(fig, FIG_DIR / "iou_vs_water_fraction.png")
+    return viz.savefig(fig, FIG_DIR / "per_chip_unet_vs_otsu.png")
+
+
+# ---- 8. how dark is the water? ---------------------------------------------------------------------------------
+
+def fig_water_brightness():
+    """VH of the labelled water pixels per split (results/water_vh_histogram.csv) with the two thresholds."""
+    path = RESULTS_DIR / "water_vh_histogram.csv"
+    if not path.exists():
+        return None
+    hist = pd.read_csv(path)
+    fig, ax = plt.subplots(figsize=(6.2, 3.1))
+    for name, color in (("training", viz.GREY), ("test", viz.BLUE), ("Bolivia", viz.ORANGE)):
+        ax.plot(hist["vh_db"], hist[name], color=color, label=f"{name} water")
+    ax.set_ylim(bottom=0)
+    for run_id, text in (("R00", "Otsu"), ("R00b", "tuned")):
+        t = threshold_db(run_id)
+        ax.axvline(t, color=viz.INK, linewidth=1)
+        ax.annotate(text, (t, 0.97), xycoords=("data", "axes fraction"), xytext=(3, 0), textcoords="offset points",
+                    fontsize=8, color=viz.INK_2, va="top")
+    ax.set_xlabel("VH of labelled water pixels (dB)")
+    ax.set_ylabel("share of water pixels per dB")
+    ax.set_xlim(-35, -5)
+    ax.legend(loc="upper right")
+    fig.tight_layout()
+    return viz.savefig(fig, FIG_DIR / "water_brightness.png")
 
 
 FIGURES = {"training_curves": fig_training_curves, "ablations": fig_ablations, "cost": fig_cost,
-           "per_event": fig_per_event, "qualitative": fig_qualitative, "water_fraction": fig_water_fraction}
+           "per_event": fig_per_event, "qualitative": fig_qualitative, "error_budget": fig_error_budget,
+           "failure_examples": fig_failure_examples, "unet_vs_otsu": fig_unet_vs_otsu,
+           "water_brightness": fig_water_brightness}
 
 
 def main():

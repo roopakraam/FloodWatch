@@ -20,6 +20,9 @@ False alarms (label = not water, prediction = water):
 A chip counts as a failure when its IoU is below 0.5. Failing chips are grouped by a rule as well:
 "little water" if under 1% of the chip is labelled water, otherwise by the category that holds most
 of the chip's error pixels.
+
+The module also holds the two helpers behind the question "how dark is the water of a split?"
+(water_vh, water_vh_histogram), which the comparison of Bolivia with the training floods uses.
 """
 import numpy as np
 import pandas as pd
@@ -151,3 +154,23 @@ def failure_table(table, reference=None):
         out["_n"] = out["Test chips"] + out["Bolivia chips"]
         out = out.sort_values("_n", ascending=False).drop(columns="_n").reset_index(drop=True)
     return out, failing
+
+
+# ---- how dark is the labelled water? ---------------------------------------------------------------------------
+
+def water_vh(data):
+    """VH backscatter (dB) of the labelled water pixels of a split, without the pixels that have no radar value."""
+    vh = data.images[:, 1][data.labels == WATER]
+    return vh[np.isfinite(vh)]
+
+
+def water_vh_histogram(vh_by_split, low=-35.0, high=0.0, step=0.5):
+    """Distribution of the water pixels' VH per split: share of the split's water pixels per dB, in bins of
+    `step` dB. Values outside [low, high] are counted in the first and the last bin, so every column
+    integrates to 1. Returns a frame with the bin centres (`vh_db`) and one column per split."""
+    edges = np.arange(low, high + step / 2, step)
+    out = {"vh_db": (edges[:-1] + edges[1:]) / 2}
+    for name, values in vh_by_split.items():
+        counts, _ = np.histogram(np.clip(values, low, high), bins=edges)
+        out[name] = counts / counts.sum() / step
+    return pd.DataFrame(out)

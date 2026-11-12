@@ -72,3 +72,24 @@ def test_failure_groups():
                           {"split": "test", "chip": "C_3", "iou": 0.1, "water_frac": 0.001, **base}])
     groups, failing = ea.failure_table(table)
     assert len(failing) == 2 and set(groups["Failure group"]) == {ea.GROUP_LABELS["miss_thin"], ea.GROUP_LABELS["little_water"]}
+
+
+def test_water_vh_keeps_only_labelled_water_with_a_radar_value():
+    from types import SimpleNamespace
+
+    images = np.full((1, 2, 4, 4), BRIGHT, dtype=np.float32)        # one chip: band 0 = VV, band 1 = VH
+    labels = np.zeros((1, 4, 4), dtype=np.int8)
+    labels[0, 0, :] = 1                                              # four water pixels in the first row
+    images[0, 1, 0, :] = [DARK, DARK, -22.0, np.nan]                 # one of them has no radar value
+    labels[0, 3, :] = -1
+    vh = ea.water_vh(SimpleNamespace(images=images, labels=labels))
+    assert sorted(vh.tolist()) == [DARK, DARK, -22.0]
+
+
+def test_water_vh_histogram_integrates_to_one_and_clips_the_tails():
+    hist = ea.water_vh_histogram({"a": np.array([-40.0, -30.2, -30.1, -10.0]), "b": np.array([-20.0, 3.0])})
+    assert list(hist.columns) == ["vh_db", "a", "b"] and len(hist) == 70      # 0.5 dB bins from -35 to 0
+    assert np.allclose(hist[["a", "b"]].sum() * 0.5, 1.0)
+    assert np.isclose(hist.loc[hist["vh_db"] == -34.75, "a"].iloc[0], 0.25 / 0.5)   # -40 dB counts in the first bin
+    assert np.isclose(hist.loc[hist["vh_db"] == -30.25, "a"].iloc[0], 0.50 / 0.5)
+    assert np.isclose(hist.loc[hist["vh_db"] == -0.25, "b"].iloc[0], 0.50 / 0.5)    # +3 dB counts in the last bin

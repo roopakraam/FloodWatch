@@ -1,0 +1,14 @@
+{
+  "scratch": {
+    "encoder_params": 1181744,
+    "decoder_params": 785297
+  },
+  "mobilenetv2": {
+    "encoder_params": 1841984,
+    "decoder_params": 3577489
+  },
+  "mobilenetv2_imagenet": {
+    "encoder_params": 1841984,
+    "decoder_params": 3577489
+  }
+}
