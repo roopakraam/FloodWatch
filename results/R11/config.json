@@ -1,0 +1,41 @@
+{
+  "run_id": "R11",
+  "config_name": "BCE loss",
+  "study": "E2",
+  "encoder": "mobilenetv2",
+  "channels": "vv_vh_ratio",
+  "loss": "bce",
+  "seed": 1,
+  "optimizer": "adam",
+  "learning_rate": 0.001,
+  "batch_size": 8,
+  "crop_size": 256,
+  "crops_per_chip": 4,
+  "augmentation": "random crop, horizontal flip, vertical flip, rotation by a multiple of 90 degrees",
+  "epochs": 60,
+  "monitor": "val_water_iou",
+  "early_stopping_patience": 15,
+  "reduce_lr_factor": 0.5,
+  "reduce_lr_patience": 5,
+  "min_learning_rate": 1e-05,
+  "bn_momentum": 0.99,
+  "mixed_precision": true,
+  "jit_compile": true,
+  "threshold": 0.5,
+  "eval_batch_size": 8,
+  "clip_db": [
+    -35.0,
+    5.0
+  ],
+  "norm_stats": "results/norm_stats.json",
+  "provenance": {
+    "git_commit": "43821affa35775ec71213a90fdca3a9e51668286",
+    "code_modified": false,
+    "python": "3.12.16",
+    "tensorflow": "2.21.0",
+    "keras": "3.15.1",
+    "numpy": "2.5.4",
+    "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "started_utc": "2026-11-11T14:34:09+00:00"
+  }
+}

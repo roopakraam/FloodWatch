@@ -1,0 +1,7 @@
+{
+  "run_id": "R08",
+  "config_name": "VV+VH",
+  "study": "E1",
+  "seed": 1,
+  "channels": "vv_vh"
+}

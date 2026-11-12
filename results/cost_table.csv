@@ -1,0 +1,4 @@
+Config,Parameters (millions),"Training step (ms), benchmark","Inference per chip (ms), benchmark","Peak GPU memory, training (MB), benchmark","Peak GPU memory, inference (MB), benchmark","Epochs trained, mean of 3 runs","Seconds per epoch, mean of 3 runs","Training minutes per run, mean of 3 runs","Peak host RAM (MB), mean of 3 runs"
+Scratch U-Net,1.967041,41.5,5.3,551.4,346.3,37.0,6.283333333333334,4.5200000000000005,3882.3333333333335
+Default,5.419473,56.2,9.0,618.0,372.0,35.0,8.556666666666667,6.173333333333333,4507.333333333333
+MobileNetV2 + ImageNet,5.419473,57.9,6.5,612.3,369.7,51.0,8.386666666666667,9.040000000000001,4487.333333333333

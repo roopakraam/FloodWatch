@@ -1,0 +1,87 @@
+{
+  "run_id": "R07",
+  "training": {
+    "epochs_trained": 47,
+    "max_epochs": 60,
+    "stopped_early": true,
+    "best_epoch": 32,
+    "best_val_water_iou": 0.6442453861236572,
+    "final_learning_rate": 3.125000148429535e-05,
+    "sec_per_epoch": 8.22,
+    "sec_first_epoch": 178.19,
+    "train_minutes": 9.83,
+    "peak_gpu_memory_mb": 999.4,
+    "parameters": 5419185,
+    "trainable_parameters": 5386289,
+    "peak_host_ram_mb": 3507
+  },
+  "val": {
+    "n_chips": 89,
+    "iou": 0.6442453748782863,
+    "precision": 0.8337218591780725,
+    "recall": 0.7392278798089922,
+    "f1": 0.7836365359105553,
+    "mean_chip_iou": 0.3946863740746138,
+    "chips_in_mean": 82,
+    "chips_skipped": 7,
+    "tp": 1654100,
+    "fp": 329895,
+    "fn": 583505,
+    "observed_only": {
+      "iou": 0.645898089848835,
+      "precision": 0.8342856710309521,
+      "recall": 0.7409593735405875,
+      "f1": 0.7848579372349311,
+      "mean_chip_iou": 0.3952328697064489
+    },
+    "n_valid_px": 20294725,
+    "n_valid_px_no_sar": 20571
+  },
+  "test": {
+    "n_chips": 90,
+    "iou": 0.6682178572165978,
+    "precision": 0.851054942935783,
+    "recall": 0.7567126157544072,
+    "f1": 0.8011158186875083,
+    "mean_chip_iou": 0.39819635813719806,
+    "chips_in_mean": 87,
+    "chips_skipped": 3,
+    "tp": 1941801,
+    "fp": 339839,
+    "fn": 624300,
+    "observed_only": {
+      "iou": 0.6799852038308907,
+      "precision": 0.8510369565655795,
+      "recall": 0.771853210804896,
+      "f1": 0.8095133246177552,
+      "mean_chip_iou": 0.4048044636222264
+    },
+    "n_valid_px": 20517367,
+    "n_valid_px_no_sar": 73408,
+    "inference_ms_per_chip": 13.81
+  },
+  "bolivia": {
+    "n_chips": 15,
+    "iou": 0.5884892403692683,
+    "precision": 0.8700069069576482,
+    "recall": 0.6452236272820008,
+    "f1": 0.7409420541400269,
+    "mean_chip_iou": 0.36997554516201014,
+    "chips_in_mean": 15,
+    "chips_skipped": 0,
+    "tp": 293489,
+    "fp": 43852,
+    "fn": 161375,
+    "observed_only": {
+      "iou": 0.5945196419732048,
+      "precision": 0.8772045881775404,
+      "recall": 0.6484893815238293,
+      "f1": 0.7457037546900227,
+      "mean_chip_iou": 0.3763490700092094
+    },
+    "n_valid_px": 2867815,
+    "n_valid_px_no_sar": 43381,
+    "inference_ms_per_chip": 12.7
+  },
+  "evaluated_utc": "2026-11-11T14:02:49+00:00"
+}

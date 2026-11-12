@@ -1,0 +1,6 @@
+,estimate
+seconds per epoch,10.73
+"one run, all 60 epochs (min)",10.7
+21 runs if every run uses all 60 epochs (h),5.5
+21 runs if early stopping ends them around epoch 40 (h),4.3
+"peak GPU memory (MB, of 4096)",622.5

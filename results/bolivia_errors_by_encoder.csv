@@ -1,0 +1,11 @@
+,Scratch U-Net (R16),MobileNetV2 (R02),MobileNetV2 + ImageNet (R19),Otsu (R00)
+missed water: no radar data,2382.0,2461.0,2660.0,2963.0
+missed water: not dark in the radar image,37594.0,48692.0,47159.0,60985.0
+missed water: thin or small water body,5603.0,9974.0,8040.0,0.0
+missed water: shoreline,5649.0,13061.0,12503.0,0.0
+"missed water: dark, inside a larger water body",19504.0,74706.0,107064.0,0.0
+false alarm: shoreline,30888.0,18103.0,25769.0,34181.0
+false alarm: dark land,33097.0,12601.0,28213.0,109677.0
+false alarm: other,9977.0,6921.0,9649.0,0.0
+all wrong pixels,144694.0,186519.0,241057.0,207806.0
+pooled IoU on Bolivia,0.7263904936056109,0.6212714978984345,0.5350840311823768,0.6529173806875311

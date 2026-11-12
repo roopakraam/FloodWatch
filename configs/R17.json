@@ -1,0 +1,7 @@
+{
+  "run_id": "R17",
+  "config_name": "Scratch U-Net",
+  "study": "E3",
+  "seed": 1,
+  "encoder": "scratch"
+}

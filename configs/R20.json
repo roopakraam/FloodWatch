@@ -1,0 +1,7 @@
+{
+  "run_id": "R20",
+  "config_name": "MobileNetV2 + ImageNet",
+  "study": "E3",
+  "seed": 1,
+  "encoder": "mobilenetv2_imagenet"
+}

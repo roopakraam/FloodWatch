@@ -1,0 +1,14 @@
+{
+  "scratch": {
+    "total_params": 1967041,
+    "trainable_params": 1964097
+  },
+  "mobilenetv2": {
+    "total_params": 5419473,
+    "trainable_params": 5386577
+  },
+  "mobilenetv2_imagenet": {
+    "total_params": 5419473,
+    "trainable_params": 5386577
+  }
+}

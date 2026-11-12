@@ -1,0 +1,70 @@
+/* Print style of the FloodWatch report (A4). Used by src/build_report.py. */
+@page {
+  size: A4;
+  margin: 22mm 21mm 22mm 21mm;
+  @bottom-center { content: counter(page); font: 9pt "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #52514e; }
+}
+:root {
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --rule: #c3c2b7;
+  --hair: #e1e0d9;
+  --link: #1c5cab;
+  --sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --serif: Cambria, Georgia, "Times New Roman", serif;
+}
+html { font: 10.5pt/1.42 var(--serif); color: var(--ink); background: #fff; }
+body { margin: 0; text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+@media screen { body { max-width: 168mm; margin: 12mm auto; padding: 0 6mm; } }
+
+header { margin: 0 0 7mm 0; text-align: left; }
+h1.title { font: 600 20pt/1.2 var(--sans); margin: 0 0 2mm 0; letter-spacing: -0.2px; text-align: left; hyphens: none; }
+p.subtitle { font: 400 12pt/1.3 var(--sans); color: var(--ink-2); margin: 0 0 3mm 0; text-align: left; }
+p.byline { font: 400 9.5pt/1.3 var(--sans); color: var(--ink-2); margin: 0; text-align: left; }
+
+h2, h3, h4 { font-family: var(--sans); text-align: left; hyphens: none; break-after: avoid; page-break-after: avoid; }
+h2 { font-size: 13.5pt; font-weight: 600; margin: 7.5mm 0 2.2mm 0; }
+h3 { font-size: 11pt; font-weight: 600; margin: 5mm 0 1.6mm 0; }
+h4 { font-size: 10pt; font-weight: 600; margin: 4mm 0 1.2mm 0; }
+.secnum { color: var(--ink-2); margin-right: 1.6mm; font-weight: 600; }
+
+p { margin: 0 0 2.4mm 0; orphans: 3; widows: 3; }
+ul, ol { margin: 0 0 2.4mm 0; padding-left: 6mm; }
+li { margin: 0 0 0.9mm 0; }
+a { color: var(--link); text-decoration: none; }
+a.xref, a.cite { color: var(--link); }
+strong { font-weight: 600; }
+code { font: 9pt Consolas, "DejaVu Sans Mono", monospace; background: #f4f3ef; padding: 0 2px; border-radius: 2px; hyphens: none; }
+blockquote { margin: 0 0 2.4mm 0; padding: 0 0 0 4mm; border-left: 2px solid var(--rule); color: var(--ink-2); }
+
+.abstract { margin: 0 0 5mm 0; padding: 3.2mm 4.5mm; background: #f6f5f1; border-left: 2.5px solid var(--link); font-size: 10pt; }
+.abstract p:last-child { margin-bottom: 0; }
+
+/* figures */
+figure { margin: 4.5mm 0 4.5mm 0; text-align: center; break-inside: avoid; page-break-inside: avoid; }
+figure img { max-width: 100%; height: auto; }
+figcaption, .tablecaption { font: 9pt/1.35 var(--sans); color: var(--ink-2); text-align: left; hyphens: none; }
+figcaption { margin-top: 1.5mm; }
+figcaption b, .tablecaption b { color: var(--ink); font-weight: 600; }
+
+/* tables: three rules, no vertical lines */
+.tablecaption { margin: 4.5mm 0 1.4mm 0; break-after: avoid; page-break-after: avoid; }
+table { border-collapse: collapse; width: 100%; margin: 0 0 4.5mm 0; font: 8.6pt/1.3 var(--sans); text-align: left;
+        break-inside: avoid; page-break-inside: avoid; font-variant-numeric: tabular-nums; hyphens: none; }
+thead th { border-top: 1.2px solid var(--ink); border-bottom: 0.7px solid var(--ink); padding: 1.3mm 1.6mm; font-weight: 600;
+           vertical-align: bottom; }
+tbody td { padding: 1.0mm 1.6mm; border-bottom: 0.4px solid var(--hair); vertical-align: top; }
+tbody tr:last-child td { border-bottom: 1.2px solid var(--ink); }
+td[style*="right"], th[style*="right"] { text-align: right; }
+
+/* maths */
+.math { margin: 2.6mm 0 3.2mm 0; text-align: center; break-inside: avoid; }
+math { font-size: 1.02em; }
+
+/* references */
+ol.references { padding-left: 7mm; font-size: 9pt; text-align: left; hyphens: none; }
+ol.references li { margin-bottom: 1.3mm; }
+
+.pagebreak { break-before: page; page-break-before: always; }
+.note { font: 9pt/1.35 var(--sans); color: var(--ink-2); text-align: left; }
