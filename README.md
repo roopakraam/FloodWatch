@@ -159,7 +159,7 @@ Each run writes to `results/<run>/`:
 | `history.csv`, `train.log` | per-epoch losses, IoU, learning rate and seconds |
 | `metrics.json` | training summary and the validation, test and Bolivia scores |
 | `per_chip.csv` | one row per chip and split: pixel counts, TP / FP / FN, per-chip scores |
-| `best.keras` | the model at its best validation IoU (not in git) |
+| `best.keras` | the model at its best validation IoU (in git only for R19, the model the demo uses) |
 
 `results/all_runs.csv` has one row per run in the layout of the project tracker's Runs tab.
 
@@ -170,7 +170,7 @@ python src/predict.py --chip data/s1/Bolivia_103757_S1Hand.tif
 python src/predict.py --chip <any 2-band VV/VH GeoTIFF in dB> --run R01 --out my_chip.png --tif my_mask.tif
 ```
 
-The demo loads the best-validation model (`results/best_run.json`), applies the same preprocessing as
+The demo loads the best-validation model (`results/best_run.json`, R19; its weights are in the repository), applies the same preprocessing as
 training, and saves a picture of the radar image next to the predicted water mask. If a hand label for
 the chip exists it also shows the label, an error map and the IoU. `--tif` writes the mask as a
 georeferenced GeoTIFF.

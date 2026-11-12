@@ -7,7 +7,15 @@ __pycache__/
 data/
 .venv/
 *.keras
+# ...except the best model (R19, 22 MB) so the inference demo works after a fresh clone
+!results/R19/best.keras
 *.h5
 
 # Raw process output (TensorFlow chatter); the clean per-epoch log is results/<run>/train.log
 logs/
+
+# Build intermediate of the PDF (python -m src.build_report regenerates it)
+report/report.html
+
+# Personal paper draft, kept out of the repo
+report/*.docx
