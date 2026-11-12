@@ -44,7 +44,6 @@ configs/        R01.json ... R21.json   one small file per run: seed + the one s
 data/           the dataset (not in git, see "Data")
 figures/        figures written by the notebooks; figures/report/ holds the report figures
 notebooks/      the project as it was carried out, in order (see "Notebooks")
-report/         report source (Markdown), bibliography, published numbers, generated tables, PDF
 results/        one folder per run + summary tables; the source of every reported number
 src/            the library the notebooks and scripts use
 tests/          unit tests (metrics, losses, pipeline, models, configs, error analysis, report tools)
