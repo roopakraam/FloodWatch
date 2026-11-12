@@ -1,0 +1,70 @@
+number,meaning,checked_against
+−35,lower clipping bound of the radar bands in dB,src/preprocess.py (CLIP_DB)
+−1,label value for 'no data',dataset documentation; src/data.py (NO_DATA)
+0,label value for 'not water'; first of the seeds 0 to 2,src/data.py (NON_WATER); configs/R01.json to R21.json
+0.06,lowest t-test p-value among the gaps that pass the gap-versus-std rule (rounded),results/gaps.csv ('Welch p' of the rows with 'Gap larger than std' and p above 0.05: 0.057 to 0.206)
+0.2,highest t-test p-value among those gaps (rounded),results/gaps.csv (same rows)
+0.313,dataset paper: mean per-chip IoU of the network trained on the hand labels (test; all water),"Bonafilia et al. (2020), Table 1; report/published_results.csv"
+0.352,dataset paper: the same network on Bolivia,"Bonafilia et al. (2020), Table 2; report/published_results.csv"
+0.359,dataset paper: mean per-chip IoU of the Otsu threshold on VH (test),"Bonafilia et al. (2020), Table 1; report/published_results.csv"
+0.386,dataset paper: the Otsu threshold on Bolivia,"Bonafilia et al. (2020), Table 2; report/published_results.csv"
+0.387,dataset paper: best network on Bolivia (trained on Sentinel-1 weak labels),"Bonafilia et al. (2020), Table 2"
+0.408,dataset paper: best network on the test chips (trained on Sentinel-2 weak labels),"Bonafilia et al. (2020), Table 1; report/published_results.csv"
+0.45,U-Net of Konapala et al. (radar only) as listed by Yadav et al.,"Yadav et al. (2022), Table 1; report/published_results.csv"
+0.47,lower end of the radar-only classical learners (gradient-boosted trees 0.471),"Iselborn et al. (2023), Table B.7; report/published_results.csv"
+0.5,IoU below which a chip counts as a failure; rounded level of the radar-only classical learners,src/error_analysis.py (FAILURE_IOU); Iselborn et al. (2023) Table B.7
+0.50,upper end of the radar-only classical learners (linear model 0.497),"Iselborn et al. (2023), Table B.7; report/published_results.csv"
+0.635,DeepLabv3+ from random initial weights (test IoU),"Patel et al. (2021), Table IV; report/published_results.csv"
+0.655,linear radar model of Iselborn et al. on Bolivia (pooled IoU),"Iselborn et al. (2023), Table B.7; report/published_results.csv"
+0.66,Attentive U-Net on Bolivia,"Yadav et al. (2022), Table 3; report/published_results.csv"
+0.669,DeepLabv3+ after self-supervised pre-training (test IoU),"Patel et al. (2021), Table IV; report/published_results.csv"
+0.67,"rounded test IoU of the default U-Net (""about 0.67"")",results/summary.csv (Default: Test IoU mean 0.6665)
+0.672,Attentive U-Net (test IoU),"Yadav et al. (2022), Table 1; report/published_results.csv"
+0.695,fusion network of Yadav et al. (test IoU),"Yadav et al. (2022), Table 1; report/published_results.csv"
+0.7,parameters of the distilled student model in millions,"Schmalstieg et al. (2026), abstract"
+0.8,rounded level of the models that read Sentinel-2 (0.805 and 0.787),report/published_results.csv
+0.80,Prithvi-100M fine-tuned: water IoU on the test chips (0.8046),Prithvi-100M-sen1floods11 model card; report/published_results.csv
+0.99,batch-normalisation momentum used for every model,src/config_default.json (bn_momentum)
+0.999,batch-normalisation momentum of the MobileNetV2 that ships with Keras,keras.applications.MobileNetV2; notebooks/04_smoke_test.ipynb
+1,label value for 'water'; numerators of the feature-map scales 1/2 to 1/32; item numbers in running text,src/data.py (WATER); src/models.py (MOBILENET_SKIPS)
+1%,water share below which a failing chip is put in the 'little water' group,src/error_analysis.py (LITTLE_WATER)
+1.1,version of Sen1Floods11,gs://sen1floods11/v1.1 (the bucket the data were downloaded from)
+2,last of the seeds 0 to 2; scale 1/2; factor of each upsampling step; item number in running text,configs/; src/models.py
+2%,smallest water share of the chips eligible for the qualitative figure,src/make_figures.py (pick_qualitative_chips)
+3,3×3 convolutions; item number in running text,src/models.py (conv_block)
+3.12,Python version,requirements.txt environment (python --version: 3.12.16)
+4,GPU memory in GB; scale 1/4,results/R01/config.json (provenance.gpu: RTX 3050 Laptop GPU); src/models.py
+5,upper clipping bound in dB; side of a chip in km (512 pixels of 10 m),src/preprocess.py (CLIP_DB); 512 × 10 m = 5.12 km
+5%,water share used to count the chips with little water,results/data_summary.json (chips_water_below_5pct)
+6,shortest repeat interval of Sentinel-1 in days,Torres et al. (2012)
+7.5,RAM available to WSL2 in GB,free -g on the training machine (noted in the project tracker under T03)
+8,scale 1/8 of a MobileNetV2 feature map,src/models.py (MOBILENET_SKIPS)
+10,pixel size in metres; the 10th percentile of the qualitative figure,Bonafilia et al. (2020); src/make_figures.py (QUALITATIVE_PERCENTILES)
+12,longest repeat interval of Sentinel-1 in days,Torres et al. (2012)
+15,number of Bolivia chips,results/data_integrity.json (chips_per_split.bolivia)
+16,filters of the first scratch level and of the last decoder stage; scale 1/16; 16-bit arithmetic,src/models.py; mixed_float16 policy
+25,25th percentile of the qualitative figure,src/make_figures.py (QUALITATIVE_PERCENTILES)
+32,filters; images must be divisible by 32; scale 1/32; 32-bit output and loss,src/models.py; src/losses.py
+50,50th percentile of the qualitative figure,src/make_figures.py (QUALITATIVE_PERCENTILES)
+64,filters of a U-Net level,src/models.py (SCRATCH_FILTERS; MOBILENET_DECODER_FILTERS)
+75,75th percentile of the qualitative figure,src/make_figures.py (QUALITATIVE_PERCENTILES)
+90,number of test chips; rotation step in degrees,results/data_integrity.json (chips_per_split.test); src/pipeline.py
+90%,accuracy of a model that never predicts water (100% minus the 9.5% water share),results/data_summary.json (water_share_of_valid_px)
+95,95th percentile of the qualitative figure,src/make_figures.py (QUALITATIVE_PERCENTILES)
+95%,coverage of the bootstrap intervals,src/metrics.py (bootstrap_iou_ci); src/analysis.py (bootstrap_difference)
+126,batches per epoch (252 chips × 4 crops ÷ 8),src/config_default.json; notebooks/03_pipeline_models_losses.ipynb
+128,filters of a U-Net level,src/models.py (SCRATCH_FILTERS; MOBILENET_DECODER_FILTERS)
+252,number of training chips,results/data_integrity.json (chips_per_split.train)
+256,crop size in pixels; filters of the widest U-Net level,src/config_default.json (crop_size); src/models.py
+300,parameters of the teacher model of Schmalstieg et al. in millions,"Schmalstieg et al. (2026), abstract"
+446,number of hand-labelled chips,results/data_integrity.json (chips_in_all_splits); Bonafilia et al. (2020)
+512,side of a chip in pixels,Bonafilia et al. (2020); the image files (notebooks/01_eda.ipynb)
+"1,008",crops per epoch (252 chips × 4 crops),src/config_default.json (crops_per_chip); results/data_integrity.json
+2000,first year of the period covered by the UNDRR disaster report,CRED and UNDRR (2020)
+2016,year of the earliest flood event in the dataset (India),report/generated/tables/events.md (from data/metadata.geojson)
+2019,year of the latest flood event (Spain); last year of the UNDRR period,report/generated/tables/events.md; CRED and UNDRR (2020)
+"3,254",floods recorded between 2000 and 2019,CRED and UNDRR (2020)
+"4,385",weakly labelled chips of Sen1Floods11,"Bonafilia et al. (2020), abstract"
+"4,831",all chips of Sen1Floods11,"Bonafilia et al. (2020), abstract"
+"7,348",major disaster events recorded between 2000 and 2019,CRED and UNDRR (2020)
+"67,000","unlabelled radar images used by Patel et al. (63,000 sampled images plus the 4,385 weakly labelled chips)","Patel et al. (2021), Section III.C"

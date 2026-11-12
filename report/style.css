@@ -57,6 +57,7 @@ thead th { border-top: 1.2px solid var(--ink); border-bottom: 0.7px solid var(--
 tbody td { padding: 1.0mm 1.6mm; border-bottom: 0.4px solid var(--hair); vertical-align: top; }
 tbody tr:last-child td { border-bottom: 1.2px solid var(--ink); }
 td[style*="right"], th[style*="right"] { text-align: right; }
+td[style*="right"] { white-space: nowrap; }   /* keep "0.667 ± 0.002" on one line */
 
 /* maths */
 .math { margin: 2.6mm 0 3.2mm 0; text-align: center; break-inside: avoid; }

@@ -20,7 +20,22 @@ Pooled water IoU, mean ± standard deviation over three seeds (generated from `r
 | Otsu threshold on VH (R00) | 0.388 | 0.433 | 0.653 |
 | VH threshold tuned on the training labels (R00b) | 0.492 | 0.524 | 0.531 |
 | **Default U-Net** (MobileNetV2, VV+VH+ratio, BCE+Dice; R01–R03) | 0.639 ± 0.009 | 0.667 ± 0.002 | 0.637 ± 0.017 |
+| U-Net, VH only (R04–R06) | 0.612 ± 0.008 | 0.634 ± 0.007 | 0.623 ± 0.018 |
+| U-Net, VV+VH (R07–R09) | 0.650 ± 0.009 | 0.670 ± 0.006 | 0.632 ± 0.038 |
+| U-Net, BCE loss (R10–R12) | 0.616 ± 0.009 | 0.643 ± 0.011 | 0.559 ± 0.120 |
+| U-Net, Dice loss (R13–R15) | 0.644 ± 0.007 | 0.660 ± 0.010 | 0.624 ± 0.019 |
+| Scratch U-Net (R16–R18) | 0.641 ± 0.009 | 0.655 ± 0.010 | 0.671 ± 0.071 |
+| MobileNetV2 + ImageNet weights (R19–R21) | 0.664 ± 0.007 | 0.662 ± 0.004 | 0.519 ± 0.019 |
 <!-- results:end -->
+
+What the numbers say, in short (the report gives the evidence and the caveats):
+
+* On the test chips every U-Net is far ahead of both threshold rules.
+* Adding VV to VH helps, and so does a Dice-based loss instead of BCE alone. The ratio channel, the size
+  of the encoder and ImageNet weights make no measurable difference there.
+* On Bolivia, a flood the models never saw, no network beats the Otsu threshold reliably, and the models
+  with ImageNet weights are clearly worse than the same network trained from random weights.
+* About a third of the best model's wrong pixels are labelled water that is not dark in the radar image.
 
 ## Repository layout
 
@@ -29,10 +44,10 @@ configs/        R01.json ... R21.json   one small file per run: seed + the one s
 data/           the dataset (not in git, see "Data")
 figures/        figures written by the notebooks; figures/report/ holds the report figures
 notebooks/      the project as it was carried out, in order (see "Notebooks")
-report/         report source (Markdown), bibliography, generated tables, PDF
+report/         report source (Markdown), bibliography, published numbers, generated tables, PDF
 results/        one folder per run + summary tables; the source of every reported number
 src/            the library the notebooks and scripts use
-tests/          unit tests (metrics, losses, pipeline, models, configs)
+tests/          unit tests (metrics, losses, pipeline, models, configs, error analysis, report tools)
 ```
 
 `src/` in brief:
@@ -54,6 +69,7 @@ tests/          unit tests (metrics, losses, pipeline, models, configs)
 | `analysis.py`, `error_analysis.py` | tables over all runs, seed statistics, bootstrap; rule-based error categories |
 | `make_figures.py`, `viz.py` | report figures; shared colours and plotting helpers |
 | `report_assets.py`, `build_report.py` | numbers and tables for the report; Markdown → HTML → PDF |
+| `check_report.py` | checks that every number in the report can be traced to a file or a source |
 | `predict.py` | inference demo |
 
 ## Setup
@@ -66,7 +82,7 @@ source ~/tf-gpu-env/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt           # exact versions used for the report
 python -c "import tensorflow as tf; print(tf.config.list_physical_devices('GPU'))"   # must list one GPU
-python -m pytest                          # 48 tests, about a minute
+python -m pytest                          # 67 tests, about a minute
 ```
 
 All commands below are run from the project root with the environment active.
@@ -111,7 +127,7 @@ The notebooks are the record of the project, in the order it was done. Each one 
 | `07_E2_losses.ipynb` | T23 | loss study, runs R10–R15 |
 | `08_E3_encoders.ipynb` | T24 | encoder study, runs R16–R21, and the cost of each encoder |
 | `09_results_summary.ipynb` | T25 | all runs, mean ± std, which differences are real, bootstrap intervals, best model |
-| `10_error_analysis.ipynb` | T26 | where and why the best model fails; test against Bolivia |
+| `10_error_analysis.ipynb` | T26 | where and why the best model fails; test against Bolivia (RQ4) |
 | `11_inference_demo.ipynb` | T31 | the command-line demo on chips not used in training |
 
 A notebook that trains models starts each run in its own Python process and shows its log. A run that is
@@ -129,8 +145,11 @@ python -m src.otsu_baseline                              # R00 and R00b
 python -m src.train --config configs/R04.json --evaluate # train R04, then score it once on test and Bolivia
 python -m src.evaluate --run R04                         # score an already trained run (refuses to do it twice)
 python -m src.analysis                                   # results/all_runs.csv and results/summary.csv
-python -m src.make_figures                               # figures/report/*.png
+python -m src.make_figures                               # figures/report/*.png (--only <name> for one figure)
 ```
+
+To repeat the whole project, run the notebooks in order (`01` to `11`); `04` to `08` train the 21 models,
+about two and a half hours on the laptop named above. Then rebuild the figures and the report.
 
 Each run writes to `results/<run>/`:
 
@@ -159,13 +178,18 @@ georeferenced GeoTIFF.
 ## Rebuild the report
 
 ```bash
+python -m src.make_figures      # figures/report/*.png from results/
 python -m src.report_assets     # numbers and tables from results/  ->  report/generated/
 python -m src.build_report      # report/report.md + report/sections/*.md  ->  HTML  ->  PDF
+python -m src.check_report      # every number in the report traced? (--list shows the typed ones)
 ```
 
-The report text contains placeholders instead of typed numbers; the build fails if one cannot be filled.
-`report/generated/sources.json` names the result file behind every number. The PDF is printed by Chrome
-or Edge in headless mode (set `CHROME_PATH` if neither is found).
+The report text contains placeholders instead of typed results; the build fails if one cannot be filled.
+`report/generated/sources.json` names the result file behind every generated number. The few numbers
+that are typed by hand (values from the literature, facts of the design) are registered in
+`report/typed_numbers.csv` with the source each was checked against, and `report/published_results.csv`
+records where every published score was read. The PDF is printed by Chrome or Edge in headless mode
+(set `CHROME_PATH` if neither is found).
 
 ## Rules the experiments followed
 

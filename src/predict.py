@@ -5,7 +5,7 @@
 
 What it does, end to end and outside the training code:
   1. loads the best-validation model of a run (default: the run named in results/best_run.json,
-     i.e. the default-config model with the highest validation IoU; R01 if that file is missing);
+     i.e. the U-Net with the highest validation IoU of all runs; R01 if that file is missing);
   2. reads the chip (a 2-band GeoTIFF: VV, VH in dB) and preprocesses it with THE SAME function and
      the same results/norm_stats.json as training (src/preprocess.py);
   3. predicts the water probability of every pixel and thresholds it at the run's threshold (0.5);

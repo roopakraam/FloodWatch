@@ -1,4 +1,4 @@
-"""Turn the saved results into the numbers and tables that the report pulls in (tasks T29, T30, T32).
+"""Turn the saved results into the numbers and tables that the report pulls in (tasks T28 to T30, T32).
 
     python -m src.report_assets
 
@@ -34,6 +34,7 @@ SLUGS = {"Otsu (E0)": "otsu", "Tuned VH threshold": "tuned", "Default": "default
          "BCE loss": "bce", "Dice loss": "dice", "Scratch U-Net": "scratch", "MobileNetV2 + ImageNet": "imagenet"}
 METRICS = {"iou": "IoU", "precision": "precision", "recall": "recall", "f1": "F1", "miou": "mean per-chip IoU"}
 MINUS = "−"  # a real minus sign for negative numbers in running text
+NBSP = "\u00a0"  # keeps short labels such as "per chip" on one line in narrow table columns
 
 
 class Numbers:
@@ -133,13 +134,16 @@ def method_numbers(n):
     params = read_json(RESULTS_DIR / "model_params.json")
     n.add("params_scratch", fmt(params["scratch"]["total_params"] / 1e6, 2), "results/model_params.json: scratch.total_params")
     n.add("params_mobilenet", fmt(params["mobilenetv2"]["total_params"] / 1e6, 2), "results/model_params.json: mobilenetv2.total_params")
-    n.add("params_mobilenet_decoder", fmt(params["mobilenetv2"]["decoder_params"] / 1e6, 2),
-          "results/model_params.json: mobilenetv2.decoder_params")
+    parts = read_json(RESULTS_DIR / "model_parts.json")  # written by notebooks/03_pipeline_models_losses.ipynb
+    n.add("params_mobilenet_decoder", fmt(parts["mobilenetv2"]["decoder_params"] / 1e6, 2),
+          "results/model_parts.json: mobilenetv2.decoder_params")
+    n.add("params_mobilenet_encoder", fmt(parts["mobilenetv2"]["encoder_params"] / 1e6, 2),
+          "results/model_parts.json: mobilenetv2.encoder_params")
 
     prov = read_json(run_dir("R01") / "config.json")["provenance"]
     n.add("tf_version", prov["tensorflow"], "results/R01/config.json: provenance.tensorflow")
     n.add("keras_version", prov["keras"], "results/R01/config.json: provenance.keras")
-    n.add("gpu_name", prov["gpu"].replace("NVIDIA GeForce ", "NVIDIA GeForce "), "results/R01/config.json: provenance.gpu")
+    n.add("gpu_name", prov["gpu"], "results/R01/config.json: provenance.gpu")
 
     bench = pd.read_csv(RESULTS_DIR / "smoke" / "step_benchmark.csv", index_col=0)
     n.add("step_ms_plain", fmt(bench.loc["plain TensorFlow graph", "train_step_ms"], 0), "results/smoke/step_benchmark.csv: plain graph, train_step_ms")
@@ -465,17 +469,24 @@ def table_cost(summary):
 
 
 def table_published(summary):
+    """Published numbers (report/published_results.csv, each read in the paper named there) next to this work."""
     pub = pd.read_csv(ROOT / "report" / "published_results.csv", dtype=str).fillna("")  # keep the reported precision
-    rows = [{"Method": f"{r['method']} [@{r['citation']}]", "Input": r["input"],
-             "Test IoU": r["test_iou"] or "–", "Bolivia IoU": r["bolivia_iou"] or "–"} for _, r in pub.iterrows()]
-    ours = [("Otsu threshold on VH", "Otsu (E0)"), ("Tuned VH threshold", "Tuned VH threshold"),
-            ("**Default U-Net, MobileNetV2 encoder, 5.4 M parameters**", "Default")]
-    for name, config in ours:
-        rows.append({"Method": f"This work: {name}", "Input": "Sentinel-1: VH" if "threshold" in name else "Sentinel-1: VV, VH, ratio",
-                     "Test IoU": _pm(summary, config, "Test IoU"), "Bolivia IoU": _pm(summary, config, "Bolivia IoU")})
-    write_table("published", "Published water IoU on the Sen1Floods11 hand-labelled test chips and on Bolivia, next to "
-                "this work. Training data, inputs and the IoU definition differ between papers (see text), so the "
-                "comparison is indicative only.", pd.DataFrame(rows), "llrr")
+    rows = []
+    for _, r in pub.iterrows():
+        source = f"[@{r['citation']}]" + (f", as listed in [@{r['listed_in']}]" if r["listed_in"] else "")
+        rows.append({"Method": f"{r['method']} {source}", "Input": r["input"], "IoU": r["iou_kind"].replace(" ", NBSP),
+                     "Test": r["test_iou"] or "–", "Bolivia": r["bolivia_iou"] or "–"})
+    millions = read_json(RESULTS_DIR / "model_params.json")["mobilenetv2"]["total_params"] / 1e6
+    ours = (("Otsu threshold on VH", "Otsu (E0)", "Sentinel-1: VH"), ("Tuned VH threshold", "Tuned VH threshold", "Sentinel-1: VH"),
+            (f"**Default U-Net (MobileNetV2 encoder, {millions:.1f} M parameters)**", "Default", "Sentinel-1: VV, VH, ratio"))
+    for kind, column in (("pooled", "IoU"), ("per chip", "mean per-chip IoU")):
+        for name, config, inputs in ours:
+            rows.append({"Method": f"This work: {name}", "Input": inputs, "IoU": kind.replace(" ", NBSP),
+                         "Test": _pm(summary, config, f"Test {column}"), "Bolivia": _pm(summary, config, f"Bolivia {column}")})
+    write_table("published", "Published water IoU on the hand-labelled test chips of Sen1Floods11 and on Bolivia, next to "
+                "this work. \"Pooled\": one IoU over all pixels of the split; \"per chip\": the mean of the chips' IoU "
+                "values. Training data, inputs and model selection differ between papers (see text), so the comparison "
+                "is indicative only.", pd.DataFrame(rows), "lllrr")
 
 
 def table_all_runs(runs):

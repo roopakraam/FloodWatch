@@ -63,6 +63,7 @@ thead th { border-top: 1.2px solid var(--ink); border-bottom: 0.7px solid var(--
 tbody td { padding: 1.0mm 1.6mm; border-bottom: 0.4px solid var(--hair); vertical-align: top; }
 tbody tr:last-child td { border-bottom: 1.2px solid var(--ink); }
 td[style*="right"], th[style*="right"] { text-align: right; }
+td[style*="right"] { white-space: nowrap; }   /* keep "0.667 ± 0.002" on one line */
 
 /* maths */
 .math { margin: 2.6mm 0 3.2mm 0; text-align: center; break-inside: avoid; }
@@ -80,9 +81,12 @@ ol.references li { margin-bottom: 1.3mm; }
 <body>
 <header>
 <h1 class="title">FloodWatch: lightweight U-Nets for flood-water segmentation from Sentinel-1 radar</h1>
-<p class="subtitle">A controlled study of input channels, loss and encoder on Sen1Floods11, trained on a 4 GB laptop GPU</p>
+<p class="subtitle">A controlled study of input channels, loss and encoder on Sen1Floods11, trained on a 4 GB laptop GPU</p>
 <p class="byline">Roopak Raam · Mini-project report, November 2026</p>
 </header>
+<div class="abstract">
+<p><strong>Abstract.</strong> Radar satellites see floods through cloud, and deep networks have become the standard way to turn their images into water maps. This project asks what a small network can do under tight constraints, and which design choices matter. U-Nets with at most 5.42 million parameters were trained on the 252 hand-labelled training chips of Sen1Floods11 on a laptop with a 4 GB GPU. One factor was varied at a time (input channels, loss, encoder), each configuration with three seeds, under a frozen protocol in which the test data were scored once per run. The default model, a MobileNetV2 U-Net fed with VV, VH and their ratio and trained with BCE + Dice, reaches a water IoU of 0.667 ± 0.002 on the test chips, against 0.433 for an Otsu threshold and 0.524 for the best single threshold, and within a point of a published model with a much larger encoder. Adding VV to VH and using a Dice-based loss help; the ratio channel, the encoder size and ImageNet weights do not. On a flood never seen in training the lead disappears: no network beats the Otsu threshold reliably (0.637 ± 0.017 against 0.653), models with ImageNet weights are clearly worse (0.519 ± 0.019), and the model that validation selects is the one that transfers worst. About a third of the best model’s errors are water that is not visible in the radar image.</p>
+</div>
 <h2 id="sec:intro"><span class="secnum">1</span> Introduction</h2>
 <p>Floods are the most frequent kind of disaster. Of the 7,348 major disaster events recorded worldwide between 2000 and 2019, 3,254 were floods [<a class="cite" href="#ref-undrr2020human">1</a>], and satellite records show that the share of the world’s population living in places that flood has grown [<a class="cite" href="#ref-tellman2021satellite">2</a>]. When a flood is under way, the first thing responders need is a map of where the water is. Satellites can provide one for a whole region within hours, if the water can be seen.</p>
 <p>Seeing it is the difficulty. Floods arrive with heavy cloud, and an optical satellite cannot see through cloud. Synthetic aperture radar (SAR) can. A radar satellite sends its own microwave pulses and records what is scattered back, so it works at night and through cloud. The Sentinel-1 mission images most land every 6 to 12 days at 10 m resolution and its data are free [<a class="cite" href="#ref-torres2012gmes">3</a>]. Calm water is smooth: it reflects the side-looking radar pulse away from the satellite, so open water appears dark in a radar image. This is the physical basis of every radar flood map.</p>
@@ -97,15 +101,15 @@ ol.references li { margin-bottom: 1.3mm; }
 </ul>
 <p><strong>Contributions.</strong></p>
 <ol>
-<li>A complete and reproducible pipeline for Sentinel-1 flood segmentation that runs on a 4 GB laptop GPU: 3 training runs of about 6 minutes each, with every number in this report generated from a saved result file.</li>
+<li>A complete and reproducible pipeline for Sentinel-1 flood segmentation that runs on a 4 GB laptop GPU: 21 training runs of about 7 minutes each, with every number in this report generated from a saved result file.</li>
 <li>A controlled ablation of input channels, loss function and encoder, each with three random seeds and a frozen protocol in which the test data were scored once per run, together with the cost of each encoder.</li>
-<li>An error analysis that shows where and why the models fail, an honest comparison with two threshold baselines and with published results, and three practical findings that are easy to miss: (to be written).</li>
+<li>An error analysis that shows where and why the models fail, an honest comparison with two threshold baselines and with published results, and three findings that are easy to miss: a default setting of a standard encoder that silently disables validation, a threshold baseline whose strength depends on whether the flood is a familiar one, and model selection on validation data that picks the model which transfers worst.</li>
 </ol>
 <h2 id="sec:related"><span class="secnum">2</span> Related work</h2>
 <p><strong>Thresholding.</strong> The classical way to map water in a radar image is to threshold the backscatter, with the threshold chosen automatically, for instance by Otsu’s method, which picks the cut that best separates a histogram into two groups [<a class="cite" href="#ref-otsu1979threshold">4</a>]. Rule-based chains of this kind are still used operationally, and they remain a serious reference: Bereczky et al. benchmarked convolutional networks against such a chain for Sentinel-1 water and flood mapping [<a class="cite" href="#ref-bereczky2022sentinel">5</a>].</p>
-<p><strong>The dataset and its baseline.</strong> Sen1Floods11 [<a class="cite" href="#ref-bonafilia2020sen1floods11">7</a>] contains 4,831 Sentinel-1 chips of 512×512 pixels from eleven flood events. For 446 of them a water mask was drawn by hand; the others carry automatically generated (“weak”) labels. Its authors trained a fully convolutional network with a ResNet-50 backbone on the different label sets and compared it with thresholding. Two of their conclusions matter here: a network can beat a threshold on radar data, and many weak labels gave a better model than few hand labels. This project uses only the hand-labelled chips, so it works in the small-data regime in which the authors’ own network did less well.</p>
+<p><strong>The dataset and its baseline.</strong> Sen1Floods11 [<a class="cite" href="#ref-bonafilia2020sen1floods11">7</a>] contains 4,831 Sentinel-1 chips of 512×512 pixels from eleven flood events. For 446 of them a water mask was drawn by hand; the others carry automatically generated (“weak”) labels. Its authors trained a fully convolutional network with a ResNet-50 backbone on each label set, compared it with an Otsu threshold on the VH band, and reported the mean IoU over chips. Two of their findings matter here. First, the network trained on the hand labels was never their best model: on the test chips it stayed below the threshold (0.313 against 0.359), and only the network trained on ten times as many weak labels from Sentinel-2 was clearly better (0.408). Second, on the held-out Bolivia flood the threshold (0.386) was level with their best network (0.387). This project uses only the hand-labelled chips, so it works in exactly the small-data regime in which the authors’ own network did not beat a threshold.</p>
 <p><strong>Deep networks on Sen1Floods11.</strong> U-Net [<a class="cite" href="#ref-ronneberger2015unet">6</a>], an encoder–decoder with skip connections, is the standard segmentation architecture and most later work builds on it. Konapala et al. compared combinations of Sentinel-1 and Sentinel-2 inputs for U-Nets [<a class="cite" href="#ref-konapala2021exploring">11</a>]; their radar-only U-Net is listed with a test IoU of 0.45 in the comparison table of Yadav et al. [<a class="cite" href="#ref-yadav2022attentive">8</a>]. Katiyar et al. trained SegNet and U-Net models for near-real-time mapping [<a class="cite" href="#ref-katiyar2021near">12</a>]. Bai et al. fused Sentinel-1 and Sentinel-2 in a boundary-aware network [<a class="cite" href="#ref-bai2021enhancement">13</a>]. Closest to this project, Yadav et al. proposed an “Attentive U-Net” with a ResNet-50 encoder initialised from ImageNet that takes exactly the three inputs used as the default here (VV, VH and their ratio) and adds spatial and channel attention; it reaches a test IoU of 0.672, and a second network that also receives elevation and a permanent-water mask reaches 0.695 [<a class="cite" href="#ref-yadav2022attentive">8</a>]. The same authors later used a pre-flood image as a second input [<a class="cite" href="#ref-yadav2022siamese">14</a>].</p>
-<p><strong>More data instead of bigger labels.</strong> Patel et al. showed that self- and semi-supervised pre-training on unlabelled imagery improves flood segmentation, especially under geographic shift [<a class="cite" href="#ref-patel2021evaluating">15</a>]. Foundation models push this further: Prithvi, pre-trained on a large archive of optical imagery [<a class="cite" href="#ref-jakubik2023foundation">9</a>], reaches a water IoU of 0.80 on the Sen1Floods11 test chips after fine-tuning [<a class="cite" href="#ref-prithvi2023sen1floods11">16</a>], and Schmalstieg et al. distilled a 300-million-parameter successor into a 0.7-million-parameter student for edge devices [<a class="cite" href="#ref-schmalstieg2026distillation">10</a>]. The fine-tuned Prithvi model reads the optical Sentinel-2 bands of the same chips, not the radar bands, so such results show what is possible when the sky is clear rather than what radar alone can do.</p>
+<p><strong>More data instead of bigger labels.</strong> Patel et al. showed that self-supervised pre-training on unlabelled radar imagery improves a DeepLabv3+ on this dataset (test IoU 0.669 against 0.635 from random initial weights), and that semi-supervised training with unlabelled images helps when whole flood events are held out but not on the standard split [<a class="cite" href="#ref-patel2021evaluating">15</a>]. Foundation models push this further: Prithvi, pre-trained on a large archive of optical imagery [<a class="cite" href="#ref-jakubik2023foundation">9</a>], reaches a water IoU of 0.80 on the Sen1Floods11 test chips after fine-tuning [<a class="cite" href="#ref-prithvi2023sen1floods11">16</a>], and Schmalstieg et al. distilled a 300-million-parameter successor into a 0.7-million-parameter student for edge devices [<a class="cite" href="#ref-schmalstieg2026distillation">10</a>]. The fine-tuned Prithvi model reads the optical Sentinel-2 bands of the same chips, not the radar bands, so such results show what is possible when the sky is clear rather than what radar alone can do.</p>
 <p><strong>Small models and classical learners.</strong> MobileNetV2 [<a class="cite" href="#ref-sandler2018mobilenetv2">17</a>] is a compact network built from depthwise-separable convolutions and inverted residual blocks, designed for phones; with ImageNet weights [<a class="cite" href="#ref-deng2009imagenet">18</a>] it is a common light encoder. At the other end, Iselborn et al. trained classical learners such as gradient-boosted trees on per-pixel features; with radar features alone their models reach a pooled IoU of about 0.5 on the test chips [<a class="cite" href="#ref-iselborn2023importance">19</a>], which is the level of a well-chosen threshold (<a class="xref" href="#sec:results">Section 5</a>). Their paper is also careful about a point that makes published numbers hard to compare: some papers pool all pixels of the test set before computing IoU (“total IoU”), others average the IoU of each chip (“mean IoU”), and the two can differ by almost a factor of two on this dataset.</p>
 <p><strong>How reliable are small differences?</strong> Phunjanna et al. re-evaluated surface-water models on Sen1Floods11 and found that close rankings change with the random seed and with how regions are weighted [<a class="cite" href="#ref-phunjanna2026controlled">20</a>]. That is the reason every configuration in this project is trained with three seeds, and why a difference is only called real when it exceeds the seed-to-seed spread.</p>
 <p><strong>Where this project sits.</strong> The studies above mostly add something: attention, extra inputs, more data, larger encoders. Few isolate the effect of the three most basic choices (input channels, loss, encoder) for a small model under a fixed protocol with repeated seeds, and few report what the choices cost on consumer hardware. That is the gap this project fills.</p>
@@ -401,7 +405,682 @@ ol.references li { margin-bottom: 1.3mm; }
 <p><strong>Batch-normalisation momentum.</strong> The MobileNetV2 that ships with Keras uses a batch-normalisation momentum of 0.999, which means the running statistics used at validation and test time need thousands of updates to catch up with the weights. An epoch here has 126 updates. In the smoke test the training loss fell normally while the validation IoU stayed at exactly 0.00 for all five epochs; with a momentum of 0.99 in every layer it reached 0.60 (<a class="xref" href="#fig:bn">Figure 3</a>). Because checkpointing, learning-rate reduction and early stopping all depend on the validation score, the momentum was set to 0.99 for every model. Anyone who trains a Keras application model from scratch with few updates per epoch is likely to meet the same problem.</p>
 <figure id="fig:bn"><img src="../figures/smoke_test_bn_momentum.png" style="width:88%" alt=""><figcaption><b>Figure 3.</b> The same five-epoch training run with two batch-normalisation momenta. Training behaves alike in both; the validation score only follows when the running statistics can keep up.</figcaption></figure>
 <h2 id="sec:results"><span class="secnum">5</span> Results</h2>
-<p>(to be written)</p>
+<p>All 21 training runs finished; none failed or had to be repeated. A run took 7 minutes on average (about 43 epochs of 8.0 seconds), and all runs together 2.5 hours of GPU time. Every run is listed in <a class="xref" href="#tbl:allruns">Table 11</a> in the appendix.</p>
+<h3 id="sec:main"><span class="secnum">5.1</span> The default U-Net against the threshold rules</h3>
+<div class="tablecaption" id="tbl:main"><b>Table 4.</b> The default U-Net against the two threshold rules. U-Net values are the mean ± standard deviation of three seeds; the threshold rules are deterministic. IoU, precision, recall and F1 are pooled over all labelled pixels of the split.</div>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Split</th>
+<th style="text-align:left">Method</th>
+<th style="text-align:right">Water IoU</th>
+<th style="text-align:right">Precision</th>
+<th style="text-align:right">Recall</th>
+<th style="text-align:right">F1</th>
+<th style="text-align:right">Mean per-chip IoU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Test</td>
+<td style="text-align:left">Otsu threshold (R00)</td>
+<td style="text-align:right">0.433</td>
+<td style="text-align:right">0.483</td>
+<td style="text-align:right">0.809</td>
+<td style="text-align:right">0.605</td>
+<td style="text-align:right">0.260</td>
+</tr>
+<tr>
+<td style="text-align:left"></td>
+<td style="text-align:left">Tuned threshold (R00b)</td>
+<td style="text-align:right">0.524</td>
+<td style="text-align:right">0.747</td>
+<td style="text-align:right">0.637</td>
+<td style="text-align:right">0.688</td>
+<td style="text-align:right">0.279</td>
+</tr>
+<tr>
+<td style="text-align:left"></td>
+<td style="text-align:left">Default U-Net (R01–R03)</td>
+<td style="text-align:right">0.667 ± 0.002</td>
+<td style="text-align:right">0.836 ± 0.020</td>
+<td style="text-align:right">0.767 ± 0.018</td>
+<td style="text-align:right">0.800 ± 0.002</td>
+<td style="text-align:right">0.398 ± 0.012</td>
+</tr>
+<tr>
+<td style="text-align:left">Bolivia</td>
+<td style="text-align:left">Otsu threshold (R00)</td>
+<td style="text-align:right">0.653</td>
+<td style="text-align:right">0.731</td>
+<td style="text-align:right">0.859</td>
+<td style="text-align:right">0.790</td>
+<td style="text-align:right">0.442</td>
+</tr>
+<tr>
+<td style="text-align:left"></td>
+<td style="text-align:left">Tuned threshold (R00b)</td>
+<td style="text-align:right">0.531</td>
+<td style="text-align:right">0.870</td>
+<td style="text-align:right">0.577</td>
+<td style="text-align:right">0.694</td>
+<td style="text-align:right">0.322</td>
+</tr>
+<tr>
+<td style="text-align:left"></td>
+<td style="text-align:left">Default U-Net (R01–R03)</td>
+<td style="text-align:right">0.637 ± 0.017</td>
+<td style="text-align:right">0.878 ± 0.020</td>
+<td style="text-align:right">0.699 ± 0.023</td>
+<td style="text-align:right">0.778 ± 0.013</td>
+<td style="text-align:right">0.382 ± 0.004</td>
+</tr>
+</tbody>
+</table>
+<p><strong>On the test chips the network is far ahead</strong> (<a class="xref" href="#tbl:main">Table 4</a>). The default U-Net reaches a water IoU of 0.667 ± 0.002, against 0.433 for the Otsu threshold and 0.524 for the threshold tuned on the training labels. Compared with Otsu it gives up a little recall (0.767 against 0.809) and removes most of the false alarms (precision 0.836 against 0.483). Compared with the tuned threshold it is better on both counts.</p>
+<p><strong>Two kinds of uncertainty.</strong> The three seeds agree closely on the test chips (standard deviation 0.002). The uncertainty that comes from the test set itself is much larger: resampling the 90 test chips gives a 95% interval of 0.55 to 0.76 for the IoU of run R01. Absolute IoU values on this dataset should therefore be read as “about 0.67”, not to three decimals. Differences between methods on the same chips are much better determined. The lead of R01 over Otsu is +0.235 (interval +0.16 to +0.31) and over the tuned threshold +0.144 (interval +0.11 to +0.18), and the network wins in every resample.</p>
+<p><strong>Per chip, every method looks much worse.</strong> The mean per-chip IoU of the default U-Net is 0.398 ± 0.012, against 0.260 and 0.279 for the two thresholds. Most chips hold little water, and on such a chip a few hundred wrong pixels decide the score (<a class="xref" href="#sec:errors">Section 5.4</a>). The pooled IoU is carried by the chips with large water bodies.</p>
+<p><strong>Missing radar data costs about one point.</strong> If the labelled pixels without a radar value are left out, the test IoU of the default U-Net rises from 0.667 to 0.678.</p>
+<figure id="fig:curves"><img src="../figures/report/training_curves.png" style="width:88%" alt=""><figcaption><b>Figure 4.</b> Training of the three default runs. Grey: training crops; blue: validation chips; dots: the epoch whose weights were kept. Validation IoU swings strongly from epoch to epoch at the initial learning rate and settles as the rate is reduced. The kept epochs are peaks on a noisy plateau, which is why a single run cannot resolve differences of one or two IoU points.</figcaption></figure>
+<p>Training itself was unremarkable (<a class="xref" href="#fig:curves">Figure 4</a>). There is no sign of overfitting: training and validation loss fall together and end at a similar level, and early stopping ended the default runs after 32 to 39 epochs.</p>
+<p>On Bolivia the picture is different: the default U-Net (0.637 ± 0.017) does not beat the Otsu threshold (0.653). <a class="xref" href="#sec:rq4">Section 5.3</a> returns to this.</p>
+<h3><span class="secnum">5.2</span> The three ablation studies</h3>
+<div class="tablecaption" id="tbl:ablations"><b>Table 5.</b> The three ablation studies: mean ± standard deviation over three seeds. Each configuration differs from the default in exactly one factor.</div>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Study</th>
+<th style="text-align:left">Configuration</th>
+<th style="text-align:right">Validation IoU</th>
+<th style="text-align:right">Test IoU</th>
+<th style="text-align:right">Test precision</th>
+<th style="text-align:right">Test recall</th>
+<th style="text-align:right">Bolivia IoU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Reference</td>
+<td style="text-align:left">Default (VV+VH+ratio, BCE+Dice, MobileNetV2)</td>
+<td style="text-align:right">0.639 ± 0.009</td>
+<td style="text-align:right">0.667 ± 0.002</td>
+<td style="text-align:right">0.836 ± 0.020</td>
+<td style="text-align:right">0.767 ± 0.018</td>
+<td style="text-align:right">0.637 ± 0.017</td>
+</tr>
+<tr>
+<td style="text-align:left">E1 · input</td>
+<td style="text-align:left">VH only</td>
+<td style="text-align:right">0.612 ± 0.008</td>
+<td style="text-align:right">0.634 ± 0.007</td>
+<td style="text-align:right">0.829 ± 0.015</td>
+<td style="text-align:right">0.730 ± 0.007</td>
+<td style="text-align:right">0.623 ± 0.018</td>
+</tr>
+<tr>
+<td style="text-align:left"></td>
+<td style="text-align:left">VV+VH</td>
+<td style="text-align:right">0.650 ± 0.009</td>
+<td style="text-align:right">0.670 ± 0.006</td>
+<td style="text-align:right">0.854 ± 0.013</td>
+<td style="text-align:right">0.757 ± 0.018</td>
+<td style="text-align:right">0.632 ± 0.038</td>
+</tr>
+<tr>
+<td style="text-align:left">E2 · loss</td>
+<td style="text-align:left">BCE loss</td>
+<td style="text-align:right">0.616 ± 0.009</td>
+<td style="text-align:right">0.643 ± 0.011</td>
+<td style="text-align:right">0.853 ± 0.037</td>
+<td style="text-align:right">0.725 ± 0.016</td>
+<td style="text-align:right">0.559 ± 0.120</td>
+</tr>
+<tr>
+<td style="text-align:left"></td>
+<td style="text-align:left">Dice loss</td>
+<td style="text-align:right">0.644 ± 0.007</td>
+<td style="text-align:right">0.660 ± 0.010</td>
+<td style="text-align:right">0.828 ± 0.011</td>
+<td style="text-align:right">0.765 ± 0.007</td>
+<td style="text-align:right">0.624 ± 0.019</td>
+</tr>
+<tr>
+<td style="text-align:left">E3 · encoder</td>
+<td style="text-align:left">Scratch U-Net</td>
+<td style="text-align:right">0.641 ± 0.009</td>
+<td style="text-align:right">0.655 ± 0.010</td>
+<td style="text-align:right">0.794 ± 0.001</td>
+<td style="text-align:right">0.790 ± 0.016</td>
+<td style="text-align:right">0.671 ± 0.071</td>
+</tr>
+<tr>
+<td style="text-align:left"></td>
+<td style="text-align:left">MobileNetV2 + ImageNet</td>
+<td style="text-align:right">0.664 ± 0.007</td>
+<td style="text-align:right">0.662 ± 0.004</td>
+<td style="text-align:right">0.846 ± 0.002</td>
+<td style="text-align:right">0.752 ± 0.007</td>
+<td style="text-align:right">0.519 ± 0.019</td>
+</tr>
+</tbody>
+</table>
+<figure id="fig:ablations"><img src="../figures/report/ablations.png" style="width:100%" alt=""><figcaption><b>Figure 5.</b> The ablations on the test chips (left) and on Bolivia (right). Bars: mean of three seeds; whiskers: ± one standard deviation; dots: the individual seeds; vertical lines: the two threshold rules. Bars start at zero, so the differences between configurations look as small as they are.</figcaption></figure>
+<p><a class="xref" href="#tbl:ablations">Table 5</a> and <a class="xref" href="#fig:ablations">Figure 5</a> give the scores of all seven configurations and <a class="xref" href="#tbl:gaps">Table 6</a> applies the rule fixed in advance: a difference counts only if it is larger than the spread between seeds.</p>
+<div class="tablecaption" id="tbl:gaps"><b>Table 6.</b> Every pair of configurations within a study: difference of the seed means and the larger of the two seed-to-seed standard deviations. A gap counts as real only if it exceeds that deviation.</div>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Study</th>
+<th style="text-align:left">Comparison</th>
+<th style="text-align:right">Test: gap</th>
+<th style="text-align:right">Test: larger std</th>
+<th style="text-align:left">Test: real?</th>
+<th style="text-align:right">Bolivia: gap</th>
+<th style="text-align:right">Bolivia: larger std</th>
+<th style="text-align:left">Bolivia: real?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">E1</td>
+<td style="text-align:left">VH only − VV+VH</td>
+<td style="text-align:right">−0.036</td>
+<td style="text-align:right">0.007</td>
+<td style="text-align:left">yes</td>
+<td style="text-align:right">−0.009</td>
+<td style="text-align:right">0.038</td>
+<td style="text-align:left">no</td>
+</tr>
+<tr>
+<td style="text-align:left">E1</td>
+<td style="text-align:left">VH only − Default</td>
+<td style="text-align:right">−0.032</td>
+<td style="text-align:right">0.007</td>
+<td style="text-align:left">yes</td>
+<td style="text-align:right">−0.014</td>
+<td style="text-align:right">0.018</td>
+<td style="text-align:left">no</td>
+</tr>
+<tr>
+<td style="text-align:left">E1</td>
+<td style="text-align:left">VV+VH − Default</td>
+<td style="text-align:right">+0.004</td>
+<td style="text-align:right">0.006</td>
+<td style="text-align:left">no</td>
+<td style="text-align:right">−0.005</td>
+<td style="text-align:right">0.038</td>
+<td style="text-align:left">no</td>
+</tr>
+<tr>
+<td style="text-align:left">E2</td>
+<td style="text-align:left">BCE loss − Dice loss</td>
+<td style="text-align:right">−0.017</td>
+<td style="text-align:right">0.011</td>
+<td style="text-align:left">yes</td>
+<td style="text-align:right">−0.064</td>
+<td style="text-align:right">0.120</td>
+<td style="text-align:left">no</td>
+</tr>
+<tr>
+<td style="text-align:left">E2</td>
+<td style="text-align:left">BCE loss − Default</td>
+<td style="text-align:right">−0.023</td>
+<td style="text-align:right">0.011</td>
+<td style="text-align:left">yes</td>
+<td style="text-align:right">−0.078</td>
+<td style="text-align:right">0.120</td>
+<td style="text-align:left">no</td>
+</tr>
+<tr>
+<td style="text-align:left">E2</td>
+<td style="text-align:left">Dice loss − Default</td>
+<td style="text-align:right">−0.006</td>
+<td style="text-align:right">0.010</td>
+<td style="text-align:left">no</td>
+<td style="text-align:right">−0.013</td>
+<td style="text-align:right">0.019</td>
+<td style="text-align:left">no</td>
+</tr>
+<tr>
+<td style="text-align:left">E3</td>
+<td style="text-align:left">Scratch U-Net − Default</td>
+<td style="text-align:right">−0.011</td>
+<td style="text-align:right">0.010</td>
+<td style="text-align:left">yes</td>
+<td style="text-align:right">+0.034</td>
+<td style="text-align:right">0.071</td>
+<td style="text-align:left">no</td>
+</tr>
+<tr>
+<td style="text-align:left">E3</td>
+<td style="text-align:left">Scratch U-Net − MobileNetV2 + ImageNet</td>
+<td style="text-align:right">−0.007</td>
+<td style="text-align:right">0.010</td>
+<td style="text-align:left">no</td>
+<td style="text-align:right">+0.152</td>
+<td style="text-align:right">0.071</td>
+<td style="text-align:left">yes</td>
+</tr>
+<tr>
+<td style="text-align:left">E3</td>
+<td style="text-align:left">Default − MobileNetV2 + ImageNet</td>
+<td style="text-align:right">+0.005</td>
+<td style="text-align:right">0.004</td>
+<td style="text-align:left">yes</td>
+<td style="text-align:right">+0.118</td>
+<td style="text-align:right">0.019</td>
+<td style="text-align:left">yes</td>
+</tr>
+</tbody>
+</table>
+<h4>Input channels (RQ1)</h4>
+<p><strong>Adding VV to VH helps; the ratio channel does not.</strong> With VH alone the test IoU is 0.634 ± 0.007; with VV and VH it is 0.670 ± 0.006, a gain of 0.036, about 5.2 times the spread between seeds. Precision and recall both improve (0.829 to 0.854 and 0.730 to 0.757). Adding the ratio as a third channel changes nothing measurable (0.667 ± 0.002; gap 0.004, smaller than the spread). This is plausible: the ratio is VV − VH, a fixed linear combination of the other two channels, which the first convolution can form by itself. On Bolivia none of the three inputs is distinguishable from the others.</p>
+<h4>Loss (RQ2)</h4>
+<p><strong>BCE alone is the weakest loss; Dice and BCE+Dice cannot be told apart.</strong> BCE reaches 0.643 ± 0.011 on the test chips, Dice 0.660 ± 0.010 and their sum 0.667 ± 0.002. The gaps between BCE and the other two are larger than the spread between seeds, although with three seeds a t-test stays inconclusive (p = 0.06 against the default). The mechanism is the expected one. BCE has the highest precision (0.853) and the lowest recall (0.725): judged pixel by pixel, the cheapest way to be right is to under-predict the rare class. The Dice-based losses find more water (recall 0.765 and 0.767). BCE is also the least stable on Bolivia, where its three seeds give 0.588, 0.428 and 0.662. Adding BCE to Dice does not raise the score, but the three seeds of the combined loss agree more closely on the test chips than those of Dice alone (standard deviation 0.002 against 0.010).</p>
+<h4>Encoder and cost (RQ3)</h4>
+<p><strong>On the test chips the three encoders are within about one IoU point of each other.</strong> The scratch U-Net reaches 0.655 ± 0.010, MobileNetV2 0.667 ± 0.002 and MobileNetV2 with ImageNet weights 0.662 ± 0.004. The gap between the scratch U-Net and the default (0.011) is only just larger than the spread between seeds.</p>
+<p><strong>ImageNet weights help on validation, not on test, and they hurt on Bolivia.</strong> Starting from ImageNet weights raises the validation IoU from 0.639 ± 0.009 to 0.664 ± 0.007. The test IoU does not follow: it is 0.005 lower than that of the default. That gap passes the rule of <a class="xref" href="#tbl:gaps">Table 6</a> only because the seeds of both configurations agree unusually closely (the larger standard deviation is 0.004; p = 0.21), and it is far smaller than anything the 90 test chips can resolve, so it is read as a tie. On Bolivia the pretrained models fall to 0.519 ± 0.019, against 0.637 ± 0.017 for the same network trained from random weights: a gap of 0.118, about 6.3 times the spread between seeds (p = 0.001). The pretrained encoder fits the ten training floods better and carries over to the eleventh worse.</p>
+<p><strong>The small scratch U-Net is the only model that keeps its level on Bolivia, but not reliably.</strong> Its Bolivia IoU averages 0.671, slightly above its test IoU, yet the three seeds give 0.726, 0.696 and 0.592. The third stopped after 20 epochs on an early validation peak (best epoch 5) and is the weakest of the three everywhere.</p>
+<div class="tablecaption" id="tbl:cost"><b>Table 7.</b> What each encoder costs and what it delivers. Step time, prediction time and memory come from a controlled benchmark of each model alone on the GPU (batch of 8 crops of 256×256 pixels; one 512×512 chip); epochs and minutes are means of the three training runs.</div>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Encoder</th>
+<th style="text-align:right">Parameters (millions)</th>
+<th style="text-align:right">Training step (ms)</th>
+<th style="text-align:right">Prediction per chip (ms)</th>
+<th style="text-align:right">Peak GPU memory, training (MB)</th>
+<th style="text-align:right">Epochs until stop</th>
+<th style="text-align:right">Minutes per run</th>
+<th style="text-align:right">Test IoU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Scratch U-Net</td>
+<td style="text-align:right">1.97</td>
+<td style="text-align:right">42</td>
+<td style="text-align:right">5.3</td>
+<td style="text-align:right">551</td>
+<td style="text-align:right">37</td>
+<td style="text-align:right">4.5</td>
+<td style="text-align:right">0.655 ± 0.010</td>
+</tr>
+<tr>
+<td style="text-align:left">MobileNetV2 (default)</td>
+<td style="text-align:right">5.42</td>
+<td style="text-align:right">56</td>
+<td style="text-align:right">9.0</td>
+<td style="text-align:right">618</td>
+<td style="text-align:right">35</td>
+<td style="text-align:right">6.2</td>
+<td style="text-align:right">0.667 ± 0.002</td>
+</tr>
+<tr>
+<td style="text-align:left">MobileNetV2 + ImageNet</td>
+<td style="text-align:right">5.42</td>
+<td style="text-align:right">58</td>
+<td style="text-align:right">6.5</td>
+<td style="text-align:right">612</td>
+<td style="text-align:right">51</td>
+<td style="text-align:right">9.0</td>
+<td style="text-align:right">0.662 ± 0.004</td>
+</tr>
+</tbody>
+</table>
+<figure id="fig:cost"><img src="../figures/report/cost.png" style="width:100%" alt=""><figcaption><b>Figure 6.</b> Cost of the three encoders, measured with each model alone on the GPU (median of three benchmark runs).</figcaption></figure>
+<p><strong>What the encoders cost</strong> (<a class="xref" href="#tbl:cost">Table 7</a>, <a class="xref" href="#fig:cost">Figure 6</a>). The scratch U-Net is the cheaper model on every count. It has 1.97 million parameters against 5.42 million, a faster training step (42 ms against 56 ms), shorter runs (4.5 against 6.2 minutes) and a faster prediction (about 5.3 ms per chip). The two MobileNetV2 models are the same network and should cost the same; their training steps agree, while their measured prediction times (9.0 and 6.5 ms) differ only because that measurement is noisy, so prediction times are good to about a third. ImageNet weights cost nothing at run time, but the pretrained runs needed more epochs before early stopping ended them (51 on average against 35). Memory is not a constraint for any of the models: about 551 to 618 MB of GPU memory in training, under 400 MB at prediction, and 3.8 to 4.4 GB of host memory for a training process.</p>
+<h3 id="sec:rq4"><span class="secnum">5.3</span> An unseen flood: Bolivia (RQ4)</h3>
+<p><strong>The lead over a simple threshold disappears on the held-out flood.</strong> On Bolivia the Otsu threshold reaches 0.653, far above its test score: the Bolivia chips hold proportionally more open water, and the threshold raises far fewer false alarms there (precision 0.731 against 0.483). The default U-Net reaches 0.637 ± 0.017, −0.030 relative to its test score. A paired bootstrap over the 15 Bolivia chips shows that the two cannot be separated: for the three default runs the difference to Otsu is +0.002, −0.032 and −0.018, each interval includes zero, and the network wins in only 21% to 43% of the resamples. The mean per-chip IoU even favours Otsu (0.442 against 0.382 ± 0.004).</p>
+<p><strong>What the networks lose on Bolivia is recall.</strong> Precision stays high (0.878 for the default), but recall drops from 0.767 on the test chips to 0.699. The tuned threshold shows the same pattern more strongly (recall 0.577) and scores 0.531, below Otsu. Bolivia’s water is simply less dark: its median VH is −24.3 dB against −25.5 dB in the training chips, and only 58% of it lies below the tuned threshold, although 87% lies below the more generous Otsu threshold (<a class="xref" href="#fig:brightness">Figure 7</a>). A rule or a model that has learned to be careful about moderately dark pixels, because in the training floods they were often land, will plausibly miss real water here.</p>
+<figure id="fig:brightness"><img src="../figures/report/water_brightness.png" style="width:70%" alt=""><figcaption><b>Figure 7.</b> VH backscatter of the labelled water pixels in the training chips, the test chips and Bolivia, with the two thresholds. Much of Bolivia’s water lies between the tuned and the Otsu threshold.</figcaption></figure>
+<p><strong>How well a model transfers depends on the configuration, and validation does not show it.</strong> The change from test to Bolivia ranges from +0.016 (scratch U-Net) to −0.143 (ImageNet weights), with the default at −0.030 and BCE at −0.084. The configuration with the best validation IoU, ImageNet weights, is the worst on Bolivia. Validation chips come from the same ten floods as the training chips, so they cannot reveal this.</p>
+<h3 id="sec:errors"><span class="secnum">5.4</span> Where the best model fails</h3>
+<p>The error analysis uses the single model with the highest validation IoU, as the protocol demands: R19 (MobileNetV2 + ImageNet, seed 0; test IoU 0.661, Bolivia 0.535). Every wrong pixel was assigned to a category by fixed rules (<a class="xref" href="#tbl:errors">Table 8</a>), and every chip with an IoU below 0.5 to a group (<a class="xref" href="#tbl:failures">Table 9</a>). “Dark” means VH below the Otsu threshold.</p>
+<div class="tablecaption" id="tbl:errors"><b>Table 8.</b> Where the wrong pixels are: share of all wrong pixels of a method on a split, by category. “Dark” means VH below the Otsu threshold.</div>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Kind of error</th>
+<th style="text-align:right">Test: U-Net R19</th>
+<th style="text-align:right">Test: Otsu</th>
+<th style="text-align:right">Bolivia: U-Net R19</th>
+<th style="text-align:right">Bolivia: Otsu</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">missed water: no radar data</td>
+<td style="text-align:right">5%</td>
+<td style="text-align:right">2%</td>
+<td style="text-align:right">1%</td>
+<td style="text-align:right">1%</td>
+</tr>
+<tr>
+<td style="text-align:left">missed water: not dark in the radar image</td>
+<td style="text-align:right">35%</td>
+<td style="text-align:right">16%</td>
+<td style="text-align:right">20%</td>
+<td style="text-align:right">29%</td>
+</tr>
+<tr>
+<td style="text-align:left">missed water: thin or small water body</td>
+<td style="text-align:right">5%</td>
+<td style="text-align:right">0%</td>
+<td style="text-align:right">3%</td>
+<td style="text-align:right">0%</td>
+</tr>
+<tr>
+<td style="text-align:left">missed water: shoreline</td>
+<td style="text-align:right">4%</td>
+<td style="text-align:right">0%</td>
+<td style="text-align:right">5%</td>
+<td style="text-align:right">0%</td>
+</tr>
+<tr>
+<td style="text-align:left">missed water: dark, inside a larger water body</td>
+<td style="text-align:right">15%</td>
+<td style="text-align:right">0%</td>
+<td style="text-align:right">44%</td>
+<td style="text-align:right">0%</td>
+</tr>
+<tr>
+<td style="text-align:left">false alarm: shoreline</td>
+<td style="text-align:right">14%</td>
+<td style="text-align:right">6%</td>
+<td style="text-align:right">11%</td>
+<td style="text-align:right">16%</td>
+</tr>
+<tr>
+<td style="text-align:left">false alarm: dark land</td>
+<td style="text-align:right">18%</td>
+<td style="text-align:right">76%</td>
+<td style="text-align:right">12%</td>
+<td style="text-align:right">53%</td>
+</tr>
+<tr>
+<td style="text-align:left">false alarm: other</td>
+<td style="text-align:right">3%</td>
+<td style="text-align:right">0%</td>
+<td style="text-align:right">4%</td>
+<td style="text-align:right">0%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Most errors on the test chips are missed water, and the largest part of it cannot be seen in the radar image.</strong> 65% of the model’s wrong test pixels are missed water. The largest single category, 35% of all errors, is water that is not dark: in the radar image it looks like land. This is the price of labels that were drawn with the help of optical images. No radar-only model can recover such water, and it sets a ceiling on the achievable IoU. A further 5% is water in places with no radar data at all. Genuine misses of dark water account for 15%, thin rivers and small ponds for 5%, and shorelines (missed and false together) for about a fifth.</p>
+<p><strong>False alarms are the smaller problem, and they are what the network fixes.</strong> For the Otsu threshold, 76% of all wrong test pixels are dark land taken for water. For the U-Net this category shrinks to 18%, of a total that is itself almost three times smaller. The network has learned from context that a dark field is not a lake.</p>
+<div class="tablecaption" id="tbl:failures"><b>Table 9.</b> Chips on which the best U-Net fails (IoU below 0.5), grouped by a fixed rule: under 1% water, otherwise the category holding most of the chip’s wrong pixels.</div>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Failure group</th>
+<th style="text-align:right">Test chips</th>
+<th style="text-align:right">Bolivia chips</th>
+<th style="text-align:right">Mean IoU, U-Net</th>
+<th style="text-align:right">Mean IoU, Otsu, same chips</th>
+<th style="text-align:left">Example chip</th>
+<th style="text-align:right">Its IoU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">little or no water (under 1% of the chip)</td>
+<td style="text-align:right">23</td>
+<td style="text-align:right">3</td>
+<td style="text-align:right">0.100</td>
+<td style="text-align:right">0.022</td>
+<td style="text-align:left">Ghana 97059</td>
+<td style="text-align:right">0.000</td>
+</tr>
+<tr>
+<td style="text-align:left">water that is not dark in the radar image</td>
+<td style="text-align:right">14</td>
+<td style="text-align:right">2</td>
+<td style="text-align:right">0.226</td>
+<td style="text-align:right">0.196</td>
+<td style="text-align:left">Sri-Lanka 450918</td>
+<td style="text-align:right">0.001</td>
+</tr>
+<tr>
+<td style="text-align:left">dark land taken for water</td>
+<td style="text-align:right">7</td>
+<td style="text-align:right">1</td>
+<td style="text-align:right">0.318</td>
+<td style="text-align:right">0.207</td>
+<td style="text-align:left">Sri-Lanka 117737</td>
+<td style="text-align:right">0.097</td>
+</tr>
+<tr>
+<td style="text-align:left">dark water missed</td>
+<td style="text-align:right">4</td>
+<td style="text-align:right">2</td>
+<td style="text-align:right">0.157</td>
+<td style="text-align:right">0.351</td>
+<td style="text-align:left">Pakistan 70625</td>
+<td style="text-align:right">0.000</td>
+</tr>
+<tr>
+<td style="text-align:left">edges of water bodies</td>
+<td style="text-align:right">5</td>
+<td style="text-align:right">0</td>
+<td style="text-align:right">0.444</td>
+<td style="text-align:right">0.212</td>
+<td style="text-align:left">USA 778194</td>
+<td style="text-align:right">0.346</td>
+</tr>
+<tr>
+<td style="text-align:left">no radar data</td>
+<td style="text-align:right">1</td>
+<td style="text-align:right">1</td>
+<td style="text-align:right">0.007</td>
+<td style="text-align:right">0.015</td>
+<td style="text-align:left">Paraguay 34417</td>
+<td style="text-align:right">0.000</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Chip by chip</strong> (<a class="xref" href="#tbl:failures">Table 9</a>, <a class="xref" href="#fig:failures">Figure 8</a>). 63 chips have an IoU below 0.5. The largest group by far, 26 chips, holds under 1% water: there, a few hundred missed or invented pixels are the whole score. Next come chips whose water is not dark in the radar image, and chips where dark land is taken for water. The model beats Otsu on 64 of the 86 test chips on which both have a defined IoU, but on only 4 of the 15 Bolivia chips.</p>
+<figure id="fig:failures"><img src="../figures/report/failure_examples.png" style="width:80%" alt=""><figcaption><b>Figure 8.</b> One example per failure group for the best-validation model: VH, the hand label, the Otsu threshold and the U-Net. Blue: water found; red: false alarm; yellow: missed water; grey: no data.</figcaption></figure>
+<p><strong>On Bolivia the dominant error changes.</strong> There, 44% of this model’s wrong pixels are dark water inside larger water bodies that it simply did not mark, against 15% on the test chips. This is not a limit of the sensor: the Otsu threshold finds that water. It is a failure to transfer.</p>
+<p><strong>The encoders differ on Bolivia in one kind of error.</strong> The same breakdown was made for the run with the best validation IoU of each encoder (R16, R02 and R19). The number of wrong Bolivia pixels rises from 145 thousand for the scratch U-Net to 187 thousand for MobileNetV2 and 241 thousand with ImageNet weights; the Otsu threshold has 208 thousand. Nearly all of the difference between the networks is dark water inside larger water bodies, of which they miss 20, 75 and 107 thousand pixels. The water that the two MobileNetV2 models miss is not hard to see: 67% and 73% of it is darker than the Otsu threshold (median VH −21.6 and −22.4 dB). What the scratch U-Net misses is mostly water that is not dark (median −19.5 dB). The scratch U-Net pays for its recall (0.84, against 0.67 and 0.61) with more false alarms than the default (74 against 38 thousand pixels), still about half as many as Otsu (144 thousand). These are single runs, one per encoder, so the comparison shows the mechanism, not its size.</p>
+<figure id="fig:events"><img src="../figures/report/per_event.png" style="width:78%" alt=""><figcaption><b>Figure 9.</b> Pooled IoU per flood event for the two thresholds and the best-validation U-Net. The network improves on the thresholds in every training event, most where the thresholds drown in false alarms (USA, Somalia, Paraguay), and falls behind Otsu on the held-out flood.</figcaption></figure>
+<p><strong>By event</strong> (<a class="xref" href="#fig:events">Figure 9</a>). Within the ten training floods the network is better than both thresholds everywhere, from 0.21 in Pakistan to 0.89 in Nigeria (in India only marginally). The gain is largest where a threshold produces mostly false alarms (USA: 0.14 to 0.56).</p>
+<figure id="fig:qualitative"><img src="../figures/report/qualitative.png" style="width:80%" alt=""><figcaption><b>Figure 10.</b> Six test and Bolivia chips chosen by a fixed rule from the per-chip scores of the best-validation model: the test chips at the 10th, 25th, 50th, 75th and 95th percentile of IoU among those with at least 2% water, and the median Bolivia chip. The first two are failures in the sense used here (IoU below 0.5). Colours as in <a class="xref" href="#fig:failures">Figure 8</a>.</figcaption></figure>
+<p><a class="xref" href="#fig:qualitative">Figure 10</a> shows the model’s output next to Otsu on six chips chosen by rule, from poor to good. The pattern of the error analysis is visible chip by chip: where the threshold floods a chip with false alarms the network stays clean, and what the network gets wrong is mostly water it leaves out.</p>
+<h3 id="sec:published"><span class="secnum">5.5</span> Comparison with published results</h3>
+<div class="tablecaption" id="tbl:published"><b>Table 10.</b> Published water IoU on the hand-labelled test chips of Sen1Floods11 and on Bolivia, next to this work. “Pooled”: one IoU over all pixels of the split; “per chip”: the mean of the chips’ IoU values. Training data, inputs and model selection differ between papers (see text), so the comparison is indicative only.</div>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Method</th>
+<th style="text-align:left">Input</th>
+<th style="text-align:left">IoU</th>
+<th style="text-align:right">Test</th>
+<th style="text-align:right">Bolivia</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">FCNN (ResNet-50), trained on the hand labels [<a class="cite" href="#ref-bonafilia2020sen1floods11">7</a>]</td>
+<td style="text-align:left">Sentinel-1</td>
+<td style="text-align:left">per chip</td>
+<td style="text-align:right">0.313</td>
+<td style="text-align:right">0.352</td>
+</tr>
+<tr>
+<td style="text-align:left">FCNN (ResNet-50), trained on Sentinel-2 weak labels [<a class="cite" href="#ref-bonafilia2020sen1floods11">7</a>]</td>
+<td style="text-align:left">Sentinel-1</td>
+<td style="text-align:left">per chip</td>
+<td style="text-align:right">0.408</td>
+<td style="text-align:right">0.316</td>
+</tr>
+<tr>
+<td style="text-align:left">Otsu threshold on VH [<a class="cite" href="#ref-bonafilia2020sen1floods11">7</a>]</td>
+<td style="text-align:left">Sentinel-1</td>
+<td style="text-align:left">per chip</td>
+<td style="text-align:right">0.359</td>
+<td style="text-align:right">0.386</td>
+</tr>
+<tr>
+<td style="text-align:left">FCNN of the dataset paper [<a class="cite" href="#ref-bonafilia2020sen1floods11">7</a>], as listed in [<a class="cite" href="#ref-yadav2022attentive">8</a>]</td>
+<td style="text-align:left">Sentinel-1</td>
+<td style="text-align:left">not stated</td>
+<td style="text-align:right">0.493</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">U-Net [<a class="cite" href="#ref-konapala2021exploring">11</a>], as listed in [<a class="cite" href="#ref-yadav2022attentive">8</a>]</td>
+<td style="text-align:left">Sentinel-1</td>
+<td style="text-align:left">not stated</td>
+<td style="text-align:right">0.450</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">Attentive U-Net (ResNet-50 encoder, ImageNet weights) [<a class="cite" href="#ref-yadav2022attentive">8</a>]</td>
+<td style="text-align:left">Sentinel-1: VV, VH, ratio</td>
+<td style="text-align:left">not stated</td>
+<td style="text-align:right">0.672</td>
+<td style="text-align:right">0.66</td>
+</tr>
+<tr>
+<td style="text-align:left">Fusion network (ResNet-50 encoders) [<a class="cite" href="#ref-yadav2022attentive">8</a>]</td>
+<td style="text-align:left">Sentinel-1, elevation, permanent water</td>
+<td style="text-align:left">not stated</td>
+<td style="text-align:right">0.695</td>
+<td style="text-align:right">0.69</td>
+</tr>
+<tr>
+<td style="text-align:left">DeepLabv3+, random initial weights [<a class="cite" href="#ref-patel2021evaluating">15</a>]</td>
+<td style="text-align:left">Sentinel-1</td>
+<td style="text-align:left">pooled</td>
+<td style="text-align:right">0.635</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">DeepLabv3+, self-supervised pre-training [<a class="cite" href="#ref-patel2021evaluating">15</a>]</td>
+<td style="text-align:left">Sentinel-1</td>
+<td style="text-align:left">pooled</td>
+<td style="text-align:right">0.669</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">Linear model on radar features [<a class="cite" href="#ref-iselborn2023importance">19</a>]</td>
+<td style="text-align:left">Sentinel-1</td>
+<td style="text-align:left">pooled</td>
+<td style="text-align:right">0.497</td>
+<td style="text-align:right">0.655</td>
+</tr>
+<tr>
+<td style="text-align:left">Gradient-boosted trees on radar features [<a class="cite" href="#ref-iselborn2023importance">19</a>]</td>
+<td style="text-align:left">Sentinel-1</td>
+<td style="text-align:left">pooled</td>
+<td style="text-align:right">0.471</td>
+<td style="text-align:right">0.498</td>
+</tr>
+<tr>
+<td style="text-align:left">BASNet [<a class="cite" href="#ref-bai2021enhancement">13</a>]</td>
+<td style="text-align:left">Sentinel-1 + Sentinel-2</td>
+<td style="text-align:left">pooled</td>
+<td style="text-align:right">0.645</td>
+<td style="text-align:right">0.789</td>
+</tr>
+<tr>
+<td style="text-align:left">Prithvi-100M, fine-tuned (100 M parameters) [<a class="cite" href="#ref-prithvi2023sen1floods11">16</a>]</td>
+<td style="text-align:left">Sentinel-2, six optical bands</td>
+<td style="text-align:left">not stated</td>
+<td style="text-align:right">0.805</td>
+<td style="text-align:right">0.780</td>
+</tr>
+<tr>
+<td style="text-align:left">EfficientViT-B0 distilled from Prithvi-EO-2.0 (0.7 M parameters) [<a class="cite" href="#ref-schmalstieg2026distillation">10</a>]</td>
+<td style="text-align:left">Sentinel-2 (optical)</td>
+<td style="text-align:left">not stated</td>
+<td style="text-align:right">0.787</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">This work: Otsu threshold on VH</td>
+<td style="text-align:left">Sentinel-1: VH</td>
+<td style="text-align:left">pooled</td>
+<td style="text-align:right">0.433</td>
+<td style="text-align:right">0.653</td>
+</tr>
+<tr>
+<td style="text-align:left">This work: Tuned VH threshold</td>
+<td style="text-align:left">Sentinel-1: VH</td>
+<td style="text-align:left">pooled</td>
+<td style="text-align:right">0.524</td>
+<td style="text-align:right">0.531</td>
+</tr>
+<tr>
+<td style="text-align:left">This work: <strong>Default U-Net (MobileNetV2 encoder, 5.4 M parameters)</strong></td>
+<td style="text-align:left">Sentinel-1: VV, VH, ratio</td>
+<td style="text-align:left">pooled</td>
+<td style="text-align:right">0.667 ± 0.002</td>
+<td style="text-align:right">0.637 ± 0.017</td>
+</tr>
+<tr>
+<td style="text-align:left">This work: Otsu threshold on VH</td>
+<td style="text-align:left">Sentinel-1: VH</td>
+<td style="text-align:left">per chip</td>
+<td style="text-align:right">0.260</td>
+<td style="text-align:right">0.442</td>
+</tr>
+<tr>
+<td style="text-align:left">This work: Tuned VH threshold</td>
+<td style="text-align:left">Sentinel-1: VH</td>
+<td style="text-align:left">per chip</td>
+<td style="text-align:right">0.279</td>
+<td style="text-align:right">0.322</td>
+</tr>
+<tr>
+<td style="text-align:left">This work: <strong>Default U-Net (MobileNetV2 encoder, 5.4 M parameters)</strong></td>
+<td style="text-align:left">Sentinel-1: VV, VH, ratio</td>
+<td style="text-align:left">per chip</td>
+<td style="text-align:right">0.398 ± 0.012</td>
+<td style="text-align:right">0.382 ± 0.004</td>
+</tr>
+</tbody>
+</table>
+<p><a class="xref" href="#tbl:published">Table 10</a> places the default model next to published numbers for the same test chips. Each number was read in the paper it comes from, except two that are available only as listed in a later paper. Four things can be said with some confidence.</p>
+<ul>
+<li><strong>A small network is in the same range as much larger radar models.</strong> The default U-Net (0.667 ± 0.002) is within a point of the Attentive U-Net of Yadav et al. (0.672), which uses the same three inputs with a ResNet-50 encoder initialised from ImageNet and attention modules [<a class="cite" href="#ref-yadav2022attentive">8</a>], and of the DeepLabv3+ of Patel et al. after self-supervised pre-training on about 67,000 unlabelled radar images (0.669; 0.635 without it) [<a class="cite" href="#ref-patel2021evaluating">15</a>]. It is well above the radar-only classical learners of Iselborn et al. (0.47 to 0.50) [<a class="cite" href="#ref-iselborn2023importance">19</a>].</li>
+<li><strong>Measured the way the dataset paper measured, the result holds.</strong> Bonafilia et al. report the mean IoU over chips: 0.313 for their ResNet-50 network trained on the same hand labels, 0.408 for the one trained on the weak labels and 0.359 for an Otsu threshold [<a class="cite" href="#ref-bonafilia2020sen1floods11">7</a>]. The mean per-chip IoU of the default U-Net is 0.398 ± 0.012. The per-chip numbers are less comparable than they look, because the papers may count chips without water differently and choose the Otsu threshold differently; the single global threshold used here reaches only 0.260 per chip.</li>
+<li><strong>Radar alone stays well below optical input.</strong> Models that read the Sentinel-2 bands of the same chips reach about 0.8 [<a class="cite" href="#ref-prithvi2023sen1floods11">16</a>, <a class="cite" href="#ref-schmalstieg2026distillation">10</a>]. The error analysis above gives one reason: a third of the errors of the radar model are water that is not visible in the radar image.</li>
+<li><strong>On Bolivia, simple and complex radar methods end up close together.</strong> The linear radar model of Iselborn et al. is reported at 0.655, the Attentive U-Net at 0.66, the Otsu threshold here at 0.653 and the default U-Net at 0.637. In the dataset paper, too, the Otsu threshold was level with the best network on Bolivia and above the network trained on the hand labels (0.386 against 0.387 and 0.352 per chip). That a threshold is hard to beat on this held-out flood (<a class="xref" href="#sec:rq4">Section 5.3</a>) is therefore not peculiar to this project.</li>
+</ul>
+<p>The comparison is indicative only. The papers differ in training data (some use weak labels or unlabelled imagery), inputs, preprocessing and model selection; several report a single run where this work reports the mean of three; and not all state whether their IoU is pooled over pixels or averaged over chips, which on this dataset changes the number by up to a factor of two. Two values are available only as listed by Yadav et al.: the one for the dataset’s network, which does not appear in the dataset paper itself, and the one for the U-Net of Konapala et al., which was obtained on other splits [<a class="cite" href="#ref-iselborn2023importance">19</a>]. <code>report/published_results.csv</code> records where each number was read.</p>
+<h2 id="sec:discussion"><span class="secnum">6</span> Discussion</h2>
+<p><strong>RQ1: use both polarisations, skip the ratio.</strong> VV adds information that VH does not have, worth about 0.036 IoU on the test chips, and it improves precision and recall together. A hand-made ratio channel adds nothing, because the network can compute it. Its only use here is practical: it fills the third input channel that ImageNet weights require.</p>
+<p><strong>RQ2: train with a Dice-based loss.</strong> With water at about a tenth of the pixels, BCE alone under-predicts water, as expected, and it was the least stable loss on the unseen flood. Dice alone and BCE+Dice score the same; the combination gave the most consistent seeds, which is a reason to keep it as the default.</p>
+<p><strong>RQ3: on familiar floods the encoder hardly matters; ImageNet weights are not worth it for radar.</strong> A scratch U-Net with 1.97 million parameters is within about a point of the MobileNetV2 U-Net with 5.42 million. Pretraining on photographs raised the validation score, did nothing for the test score and made the model clearly worse on the unseen flood. The experiments do not show why. A plausible reading is that the pretrained encoder reaches a closer fit to the training floods (the validation chips come from the same floods) and that this closer fit is exactly what does not transfer. Testing that would need runs with a lower learning rate or a frozen encoder, which were outside the plan. The pattern is not new: for a DeepLabv3+ on the same data, Patel et al. report that ImageNet weights add about one point on the standard test split and nothing when whole flood events are held out [<a class="cite" href="#ref-patel2021evaluating">15</a>]. The scratch U-Net is also the cheaper model to train and to run, so within the range studied here a larger or pretrained encoder buys nothing that can be measured on the test chips.</p>
+<p><strong>RQ4: performance does not reliably hold on an unseen flood.</strong> This is the most important result, and it is a negative one. On the test chips every network beats both thresholds by a wide margin. On Bolivia no configuration beats the Otsu threshold reliably; the default cannot be separated from it, the ImageNet models are far below it, and the scratch U-Net is above it in two seeds and below it in the third. The networks stay precise on Bolivia but miss water that is moderately dark, which a generous threshold catches. Two consequences follow. First, a simple unsupervised threshold is a serious competitor outside the training distribution and belongs in every such comparison. Second, validation data drawn from the training floods cannot be used to choose a model for new floods: here it selected the configuration that transferred worst.</p>
+<p><strong>How much weight the numbers can bear.</strong> Two sources of noise were measured. Between seeds, the test IoU moves by a few thousandths to about one point, the Bolivia IoU by two to twelve points. Between possible test sets, a bootstrap over chips moves the absolute IoU by about ten points in either direction, while paired differences between methods are much more stable. Differences of a point or less between configurations on the test chips, such as the default against VV+VH or against Dice, should therefore be treated as ties, and every statement about Bolivia rests on 15 chips from one flood.</p>
+<p><strong>What limits radar-only mapping.</strong> About a third of the best model’s wrong test pixels are labelled water that is not dark in the radar image, and a further twentieth has no radar data at all. No change of architecture or loss can recover those. Part of what looks like model error on this benchmark is a mismatch between what the labels describe (water visible in optical and radar images together) and what a single radar image can show.</p>
+<p><strong>Practical lessons.</strong> Three things cost time or would have misled, and none of them is specific to floods. (1) A Keras application model trained from scratch with few updates per epoch needs a smaller batch-normalisation momentum; otherwise the validation score, and everything that depends on it, is meaningless for many epochs. (2) The baseline matters: Otsu is weak on the test chips and strong on Bolivia, a threshold tuned on labels is the reverse, and reporting only one of them would have told half the story in either direction. (3) Compiling the model made the difference between a plan that fits a laptop and one that does not.</p>
+<h2 id="sec:limitations"><span class="secnum">7</span> Limitations</h2>
+<ul>
+<li><strong>Little data, one held-out event.</strong> 252 training chips, 90 test chips and 15 Bolivia chips. The generalisation result rests on a single unseen flood; another flood could behave differently.</li>
+<li><strong>Three seeds.</strong> A standard deviation from three runs is itself uncertain, and the rule “gap larger than the standard deviation” is a convention, not a significance test. Several gaps that pass it have t-test p-values of 0.06 to 0.2.</li>
+<li><strong>One sensor, one date.</strong> No pre-flood image, no elevation, no optical data. Each of these is known to help.</li>
+<li><strong>A single decision threshold of 0.5.</strong> It was fixed in advance for every model. On validation, the first default run would have gained about 0.015 IoU with a threshold of 0.2 (from 0.628 to 0.644); this was not used.</li>
+<li><strong>Defaults fixed after one look.</strong> Learning-rate schedule, patience and batch size were set once, after inspecting one run on validation data. Other defaults might change close rankings. The early stop of run R18 at epoch 20 shows that the noisy validation score can end a run too soon.</li>
+<li><strong>The cause of the ImageNet effect is not established.</strong> It was observed in three seeds, not explained.</li>
+<li><strong>Labels and sensor disagree in places.</strong> Some labelled water is invisible to radar, and some labelled pixels have no radar value. This lowers every radar-only score and blurs comparisons.</li>
+<li><strong>Timings come from one laptop.</strong> They depend on the GPU, the driver, the compiler cache and the temperature of the machine, and are best read as ratios between models.</li>
+<li><strong>The published comparison is indicative.</strong> Inputs, training data, model selection and the definition of IoU differ between papers, and two values were available only as listed by a later paper.</li>
+</ul>
+<h2 id="sec:future"><span class="secnum">8</span> Future work</h2>
+<ul>
+<li><strong>Select and validate by event.</strong> Hold out whole floods during development (leave-one-event-out) so that model selection rewards transfer, and calibrate the decision threshold per event.</li>
+<li><strong>More data without more hand labels.</strong> Use the 4,385 weakly labelled chips of Sen1Floods11, which gave the dataset’s authors their best network, or use unlabelled radar imagery for self-supervised pre-training or semi-supervised training, which improved a radar-only model in the study of Patel et al. [<a class="cite" href="#ref-patel2021evaluating">15</a>].</li>
+<li><strong>More inputs.</strong> Sentinel-2 when the sky is clear, a pre-flood radar image, elevation and a permanent-water mask.</li>
+<li><strong>Larger encoders</strong> such as ResNet, now that the cost of the small ones is known, and ensembles of the three seeds.</li>
+<li><strong>Understand the ImageNet effect</strong> with a lower learning rate for the encoder or a frozen encoder.</li>
+</ul>
+<h2 id="sec:conclusion"><span class="secnum">9</span> Conclusion</h2>
+<p>A U-Net with a MobileNetV2 encoder and 5.42 million parameters, trained in about 6.2 minutes on a 4 GB laptop GPU from 252 hand-labelled chips, reaches a water IoU of 0.667 ± 0.002 on the Sen1Floods11 test chips. That is 0.233 above an Otsu threshold, 0.143 above the best single threshold, and within a point of a published model with a much larger encoder. Of the design choices studied, two matter on familiar floods: using VV as well as VH, and a Dice-based loss instead of BCE alone. The ratio channel, the size of the encoder and ImageNet weights do not.</p>
+<p>On a flood the models have never seen, the picture changes. No network beats the Otsu threshold reliably, the pretrained models are clearly worse than the same network trained from scratch, and the model that validation would select is the one that transfers worst. For flood mapping, where the next event is by definition a new one, this is the result that deserves most attention: how a model is validated matters as much as how it is built.</p>
 <h2>References</h2>
 <ol class="references">
 <li id="ref-undrr2020human">Centre for Research on the Epidemiology of Disasters (CRED) and UN Office for Disaster Risk Reduction (UNDRR). The human cost of disasters: an overview of the last 20 years (2000–2019). <em>UNDRR</em>, 2020. <a href="https://www.undrr.org/publication/human-cost-disasters-overview-last-20-years-2000-2019">https://www.undrr.org/publication/human-cost-disasters-overview-last-20-years-2000-2019</a></li>
@@ -428,6 +1107,335 @@ ol.references li { margin-bottom: 1.3mm; }
 <li id="ref-milletari2016vnet">F. Milletari, N. Navab, and S.-A. Ahmadi. V-Net: Fully Convolutional Neural Networks for Volumetric Medical Image Segmentation. <em>International Conference on 3D Vision (3DV)</em>, pp. 565–571, 2016. doi:<a href="https://doi.org/10.1109/3DV.2016.79">10.1109/3DV.2016.79</a></li>
 <li id="ref-kingma2015adam">D. P. Kingma and J. Ba. Adam: A Method for Stochastic Optimization. <em>International Conference on Learning Representations (ICLR)</em>, 2015.</li>
 </ol>
+<h2>Appendix A. All runs</h2>
+<div class="tablecaption" id="tbl:allruns"><b>Table 11.</b> Every run. The same table, with more columns, is results/all_runs.csv.</div>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Run</th>
+<th style="text-align:left">Configuration</th>
+<th style="text-align:left">Seed</th>
+<th style="text-align:right">Epochs</th>
+<th style="text-align:right">Best epoch</th>
+<th style="text-align:right">Val IoU</th>
+<th style="text-align:right">Test IoU</th>
+<th style="text-align:right">Test precision</th>
+<th style="text-align:right">Test recall</th>
+<th style="text-align:right">Bolivia IoU</th>
+<th style="text-align:right">s / epoch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">R00</td>
+<td style="text-align:left">Otsu (E0)</td>
+<td style="text-align:left">–</td>
+<td style="text-align:right">–</td>
+<td style="text-align:right">–</td>
+<td style="text-align:right">0.388</td>
+<td style="text-align:right">0.433</td>
+<td style="text-align:right">0.483</td>
+<td style="text-align:right">0.809</td>
+<td style="text-align:right">0.653</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">R01</td>
+<td style="text-align:left">Default</td>
+<td style="text-align:left">0</td>
+<td style="text-align:right">39</td>
+<td style="text-align:right">24</td>
+<td style="text-align:right">0.628</td>
+<td style="text-align:right">0.668</td>
+<td style="text-align:right">0.852</td>
+<td style="text-align:right">0.756</td>
+<td style="text-align:right">0.655</td>
+<td style="text-align:right">8.6</td>
+</tr>
+<tr>
+<td style="text-align:left">R02</td>
+<td style="text-align:left">Default</td>
+<td style="text-align:left">1</td>
+<td style="text-align:right">32</td>
+<td style="text-align:right">17</td>
+<td style="text-align:right">0.645</td>
+<td style="text-align:right">0.664</td>
+<td style="text-align:right">0.844</td>
+<td style="text-align:right">0.757</td>
+<td style="text-align:right">0.621</td>
+<td style="text-align:right">8.4</td>
+</tr>
+<tr>
+<td style="text-align:left">R03</td>
+<td style="text-align:left">Default</td>
+<td style="text-align:left">2</td>
+<td style="text-align:right">34</td>
+<td style="text-align:right">19</td>
+<td style="text-align:right">0.643</td>
+<td style="text-align:right">0.667</td>
+<td style="text-align:right">0.813</td>
+<td style="text-align:right">0.788</td>
+<td style="text-align:right">0.635</td>
+<td style="text-align:right">8.6</td>
+</tr>
+<tr>
+<td style="text-align:left">R04</td>
+<td style="text-align:left">VH only</td>
+<td style="text-align:left">0</td>
+<td style="text-align:right">39</td>
+<td style="text-align:right">24</td>
+<td style="text-align:right">0.605</td>
+<td style="text-align:right">0.639</td>
+<td style="text-align:right">0.846</td>
+<td style="text-align:right">0.723</td>
+<td style="text-align:right">0.630</td>
+<td style="text-align:right">8.3</td>
+</tr>
+<tr>
+<td style="text-align:left">R05</td>
+<td style="text-align:left">VH only</td>
+<td style="text-align:left">1</td>
+<td style="text-align:right">44</td>
+<td style="text-align:right">29</td>
+<td style="text-align:right">0.611</td>
+<td style="text-align:right">0.627</td>
+<td style="text-align:right">0.816</td>
+<td style="text-align:right">0.729</td>
+<td style="text-align:right">0.603</td>
+<td style="text-align:right">8.3</td>
+</tr>
+<tr>
+<td style="text-align:left">R06</td>
+<td style="text-align:left">VH only</td>
+<td style="text-align:left">2</td>
+<td style="text-align:right">47</td>
+<td style="text-align:right">32</td>
+<td style="text-align:right">0.620</td>
+<td style="text-align:right">0.638</td>
+<td style="text-align:right">0.826</td>
+<td style="text-align:right">0.737</td>
+<td style="text-align:right">0.637</td>
+<td style="text-align:right">8.2</td>
+</tr>
+<tr>
+<td style="text-align:left">R07</td>
+<td style="text-align:left">VV+VH</td>
+<td style="text-align:left">0</td>
+<td style="text-align:right">47</td>
+<td style="text-align:right">32</td>
+<td style="text-align:right">0.644</td>
+<td style="text-align:right">0.668</td>
+<td style="text-align:right">0.851</td>
+<td style="text-align:right">0.757</td>
+<td style="text-align:right">0.588</td>
+<td style="text-align:right">8.2</td>
+</tr>
+<tr>
+<td style="text-align:left">R08</td>
+<td style="text-align:left">VV+VH</td>
+<td style="text-align:left">1</td>
+<td style="text-align:right">54</td>
+<td style="text-align:right">39</td>
+<td style="text-align:right">0.646</td>
+<td style="text-align:right">0.678</td>
+<td style="text-align:right">0.844</td>
+<td style="text-align:right">0.775</td>
+<td style="text-align:right">0.658</td>
+<td style="text-align:right">8.2</td>
+</tr>
+<tr>
+<td style="text-align:left">R09</td>
+<td style="text-align:left">VV+VH</td>
+<td style="text-align:left">2</td>
+<td style="text-align:right">60</td>
+<td style="text-align:right">45</td>
+<td style="text-align:right">0.661</td>
+<td style="text-align:right">0.665</td>
+<td style="text-align:right">0.869</td>
+<td style="text-align:right">0.740</td>
+<td style="text-align:right">0.650</td>
+<td style="text-align:right">8.3</td>
+</tr>
+<tr>
+<td style="text-align:left">R10</td>
+<td style="text-align:left">BCE loss</td>
+<td style="text-align:left">0</td>
+<td style="text-align:right">47</td>
+<td style="text-align:right">32</td>
+<td style="text-align:right">0.620</td>
+<td style="text-align:right">0.655</td>
+<td style="text-align:right">0.879</td>
+<td style="text-align:right">0.720</td>
+<td style="text-align:right">0.588</td>
+<td style="text-align:right">8.0</td>
+</tr>
+<tr>
+<td style="text-align:left">R11</td>
+<td style="text-align:left">BCE loss</td>
+<td style="text-align:left">1</td>
+<td style="text-align:right">44</td>
+<td style="text-align:right">29</td>
+<td style="text-align:right">0.606</td>
+<td style="text-align:right">0.642</td>
+<td style="text-align:right">0.869</td>
+<td style="text-align:right">0.711</td>
+<td style="text-align:right">0.428</td>
+<td style="text-align:right">8.1</td>
+</tr>
+<tr>
+<td style="text-align:left">R12</td>
+<td style="text-align:left">BCE loss</td>
+<td style="text-align:left">2</td>
+<td style="text-align:right">39</td>
+<td style="text-align:right">24</td>
+<td style="text-align:right">0.622</td>
+<td style="text-align:right">0.633</td>
+<td style="text-align:right">0.811</td>
+<td style="text-align:right">0.743</td>
+<td style="text-align:right">0.662</td>
+<td style="text-align:right">8.0</td>
+</tr>
+<tr>
+<td style="text-align:left">R13</td>
+<td style="text-align:left">Dice loss</td>
+<td style="text-align:left">0</td>
+<td style="text-align:right">30</td>
+<td style="text-align:right">15</td>
+<td style="text-align:right">0.649</td>
+<td style="text-align:right">0.657</td>
+<td style="text-align:right">0.831</td>
+<td style="text-align:right">0.758</td>
+<td style="text-align:right">0.625</td>
+<td style="text-align:right">8.2</td>
+</tr>
+<tr>
+<td style="text-align:left">R14</td>
+<td style="text-align:left">Dice loss</td>
+<td style="text-align:left">1</td>
+<td style="text-align:right">35</td>
+<td style="text-align:right">20</td>
+<td style="text-align:right">0.636</td>
+<td style="text-align:right">0.653</td>
+<td style="text-align:right">0.816</td>
+<td style="text-align:right">0.765</td>
+<td style="text-align:right">0.604</td>
+<td style="text-align:right">8.2</td>
+</tr>
+<tr>
+<td style="text-align:left">R15</td>
+<td style="text-align:left">Dice loss</td>
+<td style="text-align:left">2</td>
+<td style="text-align:right">39</td>
+<td style="text-align:right">24</td>
+<td style="text-align:right">0.646</td>
+<td style="text-align:right">0.672</td>
+<td style="text-align:right">0.837</td>
+<td style="text-align:right">0.773</td>
+<td style="text-align:right">0.642</td>
+<td style="text-align:right">8.3</td>
+</tr>
+<tr>
+<td style="text-align:left">R16</td>
+<td style="text-align:left">Scratch U-Net</td>
+<td style="text-align:left">0</td>
+<td style="text-align:right">46</td>
+<td style="text-align:right">31</td>
+<td style="text-align:right">0.649</td>
+<td style="text-align:right">0.661</td>
+<td style="text-align:right">0.794</td>
+<td style="text-align:right">0.799</td>
+<td style="text-align:right">0.726</td>
+<td style="text-align:right">6.3</td>
+</tr>
+<tr>
+<td style="text-align:left">R17</td>
+<td style="text-align:left">Scratch U-Net</td>
+<td style="text-align:left">1</td>
+<td style="text-align:right">45</td>
+<td style="text-align:right">30</td>
+<td style="text-align:right">0.642</td>
+<td style="text-align:right">0.661</td>
+<td style="text-align:right">0.793</td>
+<td style="text-align:right">0.799</td>
+<td style="text-align:right">0.696</td>
+<td style="text-align:right">6.3</td>
+</tr>
+<tr>
+<td style="text-align:left">R18</td>
+<td style="text-align:left">Scratch U-Net</td>
+<td style="text-align:left">2</td>
+<td style="text-align:right">20</td>
+<td style="text-align:right">5</td>
+<td style="text-align:right">0.631</td>
+<td style="text-align:right">0.644</td>
+<td style="text-align:right">0.795</td>
+<td style="text-align:right">0.771</td>
+<td style="text-align:right">0.592</td>
+<td style="text-align:right">6.2</td>
+</tr>
+<tr>
+<td style="text-align:left">R19</td>
+<td style="text-align:left">MobileNetV2 + ImageNet</td>
+<td style="text-align:left">0</td>
+<td style="text-align:right">60</td>
+<td style="text-align:right">47</td>
+<td style="text-align:right">0.670</td>
+<td style="text-align:right">0.661</td>
+<td style="text-align:right">0.847</td>
+<td style="text-align:right">0.751</td>
+<td style="text-align:right">0.535</td>
+<td style="text-align:right">8.2</td>
+</tr>
+<tr>
+<td style="text-align:left">R20</td>
+<td style="text-align:left">MobileNetV2 + ImageNet</td>
+<td style="text-align:left">1</td>
+<td style="text-align:right">44</td>
+<td style="text-align:right">29</td>
+<td style="text-align:right">0.668</td>
+<td style="text-align:right">0.667</td>
+<td style="text-align:right">0.844</td>
+<td style="text-align:right">0.760</td>
+<td style="text-align:right">0.524</td>
+<td style="text-align:right">8.3</td>
+</tr>
+<tr>
+<td style="text-align:left">R21</td>
+<td style="text-align:left">MobileNetV2 + ImageNet</td>
+<td style="text-align:left">2</td>
+<td style="text-align:right">49</td>
+<td style="text-align:right">34</td>
+<td style="text-align:right">0.656</td>
+<td style="text-align:right">0.658</td>
+<td style="text-align:right">0.848</td>
+<td style="text-align:right">0.746</td>
+<td style="text-align:right">0.499</td>
+<td style="text-align:right">8.6</td>
+</tr>
+<tr>
+<td style="text-align:left">R00b</td>
+<td style="text-align:left">Tuned VH threshold</td>
+<td style="text-align:left">–</td>
+<td style="text-align:right">–</td>
+<td style="text-align:right">–</td>
+<td style="text-align:right">0.492</td>
+<td style="text-align:right">0.524</td>
+<td style="text-align:right">0.747</td>
+<td style="text-align:right">0.637</td>
+<td style="text-align:right">0.531</td>
+<td style="text-align:right">–</td>
+</tr>
+</tbody>
+</table>
+<h2>Appendix B. Reproducing the results</h2>
+<p>The code, the run configurations, the result files and the notebooks are in the project repository; <code>README.md</code> gives the set-up and the commands. In brief:</p>
+<ul>
+<li><strong>Data.</strong> The hand-labelled Sentinel-1 chips, their labels and the split files of Sen1Floods11 v1.1, downloaded from the public bucket <code>gs://sen1floods11</code>.</li>
+<li><strong>Runs.</strong> <code>configs/R01.json</code> to <code>configs/R21.json</code> hold the seed and the one setting in which each run differs from <code>src/config_default.json</code>. <code>python -m src.train --config configs/R04.json --evaluate</code> trains a run and scores it once on test and Bolivia; the notebooks <code>04</code> to <code>08</code> do the same for all runs and keep their logs.</li>
+<li><strong>Frozen defaults.</strong> The training defaults were tagged <code>defaults-frozen</code> in git before any ablation run. All ablation runs were produced by that version of the training and scoring code; each run’s <code>config.json</code> records the commit.</li>
+<li><strong>Numbers.</strong> Every number in this report is read at build time from a file under <code>results/</code> by <code>python -m src.report_assets</code>; <code>report/generated/sources.json</code> lists the file and field behind each one. <code>results/all_runs.csv</code> is the table of all runs.</li>
+<li><strong>Software and hardware.</strong> Python 3.12, TensorFlow 2.21.0, Keras 3.15.1; NVIDIA GeForce RTX 3050 Laptop GPU with 4 GB under WSL2. Exact package versions are in <code>requirements.txt</code>.</li>
+</ul>
 
 </body>
 </html>

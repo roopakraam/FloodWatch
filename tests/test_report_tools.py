@@ -1,9 +1,9 @@
-"""Tests for the TensorFlow-free tooling: report builder, seed statistics, run log, demo padding."""
+"""Tests for the TensorFlow-free tooling: report builder, number check, seed statistics, run log, demo padding."""
 import numpy as np
 import pandas as pd
 import pytest
 
-from src import analysis
+from src import analysis, check_report
 from src.build_report import Builder, format_authors, parse_bibtex
 from src.predict import predict_proba
 from src.runlog import format_epoch
@@ -39,6 +39,20 @@ def test_builder_numbers_sections_figures_and_citations():
 def test_builder_stops_on_anything_it_cannot_resolve(text):
     with pytest.raises(SystemExit):
         Builder(text + "\n\n{{references}}\n").to_html()
+
+
+def test_typed_numbers_are_found_and_names_with_digits_are_not():
+    text = ("Sentinel-1 chips of 512×512 pixels [@yadav2022attentive] reach 0.672 (run R01, MobileNetV2, F1, RQ3); "
+            "{{default_test_iou_pm}} against −23.60 dB, 4,831 chips, 95% and `python3.12` in @tbl:main; $x_1 = 5$.")
+    assert check_report.typed_numbers(text) == ["512", "512", "0.672", "−23.60", "4,831", "95%"]
+    assert check_report.typed_numbers("1. First item of a list with 3 seeds.") == ["3"]
+
+
+def test_every_number_in_the_report_is_traced():
+    """The report on disk: each placeholder has a source file, each typed number is in report/typed_numbers.csv."""
+    files = check_report.source_files()
+    assert check_report.check_generated(files) == []
+    assert check_report.check_typed(files) == []
 
 
 def test_mean_std_text():
