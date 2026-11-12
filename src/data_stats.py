@@ -188,8 +188,8 @@ def plot_db_histograms(hist, threshold=None, axes=None):
     for ax, band in zip(axes, BANDS):  # the pixels below -35 dB are clipped; say how many instead of drawing a spike
         below = clipped_share(hist, band, "water")[0]
         if below >= 0.005:
-            ax.annotate(f"{below:.1%} of water pixels lie\nbelow -35 dB (clipped, not drawn)", (CLIP_DB[0] + 0.3, 0.004),
-                        xytext=(0.04, 0.80), textcoords="axes fraction", va="center", fontsize=8, color=viz.INK_2,
+            ax.annotate(f"{below:.1%} of water\npixels lie below\n-35 dB (not drawn)", (CLIP_DB[0] + 0.3, 0.004),
+                        xytext=(0.04, 0.74), textcoords="axes fraction", va="center", fontsize=8, color=viz.INK_2,
                         arrowprops={"arrowstyle": "-", "color": viz.MUTED, "linewidth": 0.8, "shrinkA": 2,
                                     "shrinkB": 0, "relpos": (0.0, 0.0)})
     if threshold is not None:

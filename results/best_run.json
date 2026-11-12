@@ -1,0 +1,7 @@
+{
+  "run_id": "R19",
+  "config": "MobileNetV2 + ImageNet",
+  "seed": 0,
+  "val_iou": 0.6697116933744752,
+  "chosen_by": "highest validation IoU among all finished U-Net runs; test scores were not consulted"
+}

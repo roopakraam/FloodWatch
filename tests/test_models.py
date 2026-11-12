@@ -56,4 +56,5 @@ def test_output_is_float32_under_mixed_precision():
 def test_parameter_counts_match_the_saved_table():
     saved = json.loads((ROOT / "results" / "model_params.json").read_text())
     for encoder in ENCODERS:
-        assert count_parameters(build_unet(encoder, 3)) == saved[encoder]
+        counted = count_parameters(build_unet(encoder, 3))
+        assert counted == {key: saved[encoder][key] for key in counted}

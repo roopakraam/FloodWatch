@@ -207,6 +207,54 @@ def best_run_by_validation(runs=None, config=None):
     return r.loc[r["Val IoU (best)"].idxmax(), "Run ID"]
 
 
+def _counts(run_id, split):
+    chips = pd.read_csv(run_dir(run_id) / "per_chip.csv")
+    return chips[chips["split"] == split].set_index("chip")[["tp", "fp", "fn"]].astype(float)
+
+
+def bootstrap_interval(run_id, split, n_boot=10000, seed=0):
+    """95% percentile interval of the pooled water IoU of one run, resampling the chips of the split."""
+    from src.metrics import bootstrap_iou_ci
+
+    return bootstrap_iou_ci(_counts(run_id, split).reset_index(drop=True), n_boot=n_boot, seed=seed)
+
+
+def bootstrap_difference(run_a, run_b, split, n_boot=10000, seed=0):
+    """Paired chip bootstrap of the pooled-IoU difference (run_a - run_b) on the same resampled chips.
+
+    Returns (difference on the real split, 2.5% quantile, 97.5% quantile, share of resamples in which
+    run_a is better)."""
+    a, b = _counts(run_a, split), _counts(run_b, split)
+    b = b.loc[a.index]
+    rng = np.random.default_rng(seed)
+    idx = rng.integers(0, len(a), size=(n_boot, len(a)))
+
+    def pooled(counts):
+        s = counts.to_numpy()[idx].sum(axis=1)
+        return s[:, 0] / s.sum(axis=1)
+
+    def point(counts):
+        s = counts.sum()
+        return s["tp"] / s.sum()
+
+    diff = pooled(a) - pooled(b)
+    low, high = np.quantile(diff, [0.025, 0.975])
+    return float(point(a) - point(b)), float(low), float(high), float((diff > 0).mean())
+
+
+def write_best_run(runs=None):
+    """Record the U-Net with the highest validation IoU in results/best_run.json (used by the error
+    analysis, the qualitative figure and the inference demo). The choice never looks at test scores."""
+    runs = runs_table() if runs is None else runs
+    run_id = best_run_by_validation(runs)
+    row = runs.set_index("Run ID").loc[run_id]
+    best = {"run_id": run_id, "config": row["Config"], "seed": int(row["Seed"]),
+            "val_iou": float(row["Val IoU (best)"]),
+            "chosen_by": "highest validation IoU among all finished U-Net runs; test scores were not consulted"}
+    (RESULTS_DIR / "best_run.json").write_text(json.dumps(best, indent=2) + "\n")
+    return best
+
+
 def write_tables():
     runs = runs_table()
     runs.to_csv(RESULTS_DIR / "all_runs.csv", index=False)

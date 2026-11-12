@@ -1,0 +1,10 @@
+Config,repeat,encoder,channels,loss,jit_compile,mixed_precision,batch_size,crop_size,total_params,trainable_params,first_train_step_s,train_step_ms,train_epoch_s_126_steps,peak_gpu_memory_train_mb,first_inference_s,inference_ms_per_chip,peak_gpu_memory_inference_mb,gpu
+Scratch U-Net,1,scratch,vv_vh_ratio,bce_dice,True,True,8,256,1967041,1964097,9.7,41.5,5.2,551.4,1.1,5.0,346.3,NVIDIA GeForce RTX 3050 Laptop GPU
+Scratch U-Net,2,scratch,vv_vh_ratio,bce_dice,True,True,8,256,1967041,1964097,9.7,41.5,5.2,551.4,1.0,5.6,346.3,NVIDIA GeForce RTX 3050 Laptop GPU
+Scratch U-Net,3,scratch,vv_vh_ratio,bce_dice,True,True,8,256,1967041,1964097,9.6,40.9,5.1,551.4,1.0,5.3,346.3,NVIDIA GeForce RTX 3050 Laptop GPU
+Default,1,mobilenetv2,vv_vh_ratio,bce_dice,True,True,8,256,5419473,5386577,31.7,55.9,7.0,618.0,2.9,10.0,372.0,NVIDIA GeForce RTX 3050 Laptop GPU
+Default,2,mobilenetv2,vv_vh_ratio,bce_dice,True,True,8,256,5419473,5386577,32.5,56.5,7.1,618.0,3.0,8.1,372.0,NVIDIA GeForce RTX 3050 Laptop GPU
+Default,3,mobilenetv2,vv_vh_ratio,bce_dice,True,True,8,256,5419473,5386577,32.6,56.2,7.1,618.0,3.1,9.0,372.0,NVIDIA GeForce RTX 3050 Laptop GPU
+MobileNetV2 + ImageNet,1,mobilenetv2_imagenet,vv_vh_ratio,bce_dice,True,True,8,256,5419473,5386577,33.0,58.0,7.3,612.3,3.0,9.9,369.7,NVIDIA GeForce RTX 3050 Laptop GPU
+MobileNetV2 + ImageNet,2,mobilenetv2_imagenet,vv_vh_ratio,bce_dice,True,True,8,256,5419473,5386577,33.5,56.8,7.2,612.3,3.0,6.5,369.7,NVIDIA GeForce RTX 3050 Laptop GPU
+MobileNetV2 + ImageNet,3,mobilenetv2_imagenet,vv_vh_ratio,bce_dice,True,True,8,256,5419473,5386577,33.5,57.9,7.3,612.3,3.1,6.4,369.7,NVIDIA GeForce RTX 3050 Laptop GPU

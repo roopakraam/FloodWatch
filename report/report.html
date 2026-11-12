@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FloodWatch: lightweight U-Nets for flood-water segmentation from Sentinel-1 radar</title>
+<style>
+/* Print style of the FloodWatch report (A4). Used by src/build_report.py. */
+@page {
+  size: A4;
+  margin: 22mm 21mm 22mm 21mm;
+  @bottom-center { content: counter(page); font: 9pt "Segoe UI", "Helvetica Neue", Arial, sans-serif; color: #52514e; }
+}
+:root {
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --rule: #c3c2b7;
+  --hair: #e1e0d9;
+  --link: #1c5cab;
+  --sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --serif: Cambria, Georgia, "Times New Roman", serif;
+}
+html { font: 10.5pt/1.42 var(--serif); color: var(--ink); background: #fff; }
+body { margin: 0; text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+@media screen { body { max-width: 168mm; margin: 12mm auto; padding: 0 6mm; } }
+
+header { margin: 0 0 7mm 0; text-align: left; }
+h1.title { font: 600 20pt/1.2 var(--sans); margin: 0 0 2mm 0; letter-spacing: -0.2px; text-align: left; hyphens: none; }
+p.subtitle { font: 400 12pt/1.3 var(--sans); color: var(--ink-2); margin: 0 0 3mm 0; text-align: left; }
+p.byline { font: 400 9.5pt/1.3 var(--sans); color: var(--ink-2); margin: 0; text-align: left; }
+
+h2, h3, h4 { font-family: var(--sans); text-align: left; hyphens: none; break-after: avoid; page-break-after: avoid; }
+h2 { font-size: 13.5pt; font-weight: 600; margin: 7.5mm 0 2.2mm 0; }
+h3 { font-size: 11pt; font-weight: 600; margin: 5mm 0 1.6mm 0; }
+h4 { font-size: 10pt; font-weight: 600; margin: 4mm 0 1.2mm 0; }
+.secnum { color: var(--ink-2); margin-right: 1.6mm; font-weight: 600; }
+
+p { margin: 0 0 2.4mm 0; orphans: 3; widows: 3; }
+ul, ol { margin: 0 0 2.4mm 0; padding-left: 6mm; }
+li { margin: 0 0 0.9mm 0; }
+a { color: var(--link); text-decoration: none; }
+a.xref, a.cite { color: var(--link); }
+strong { font-weight: 600; }
+code { font: 9pt Consolas, "DejaVu Sans Mono", monospace; background: #f4f3ef; padding: 0 2px; border-radius: 2px; hyphens: none; }
+blockquote { margin: 0 0 2.4mm 0; padding: 0 0 0 4mm; border-left: 2px solid var(--rule); color: var(--ink-2); }
+
+.abstract { margin: 0 0 5mm 0; padding: 3.2mm 4.5mm; background: #f6f5f1; border-left: 2.5px solid var(--link); font-size: 10pt; }
+.abstract p:last-child { margin-bottom: 0; }
+
+/* figures */
+figure { margin: 4.5mm 0 4.5mm 0; text-align: center; break-inside: avoid; page-break-inside: avoid; }
+figure img { max-width: 100%; height: auto; }
+figcaption, .tablecaption { font: 9pt/1.35 var(--sans); color: var(--ink-2); text-align: left; hyphens: none; }
+figcaption { margin-top: 1.5mm; }
+figcaption b, .tablecaption b { color: var(--ink); font-weight: 600; }
+
+/* tables: three rules, no vertical lines */
+.tablecaption { margin: 4.5mm 0 1.4mm 0; break-after: avoid; page-break-after: avoid; }
+table { border-collapse: collapse; width: 100%; margin: 0 0 4.5mm 0; font: 8.6pt/1.3 var(--sans); text-align: left;
+        break-inside: avoid; page-break-inside: avoid; font-variant-numeric: tabular-nums; hyphens: none; }
+thead th { border-top: 1.2px solid var(--ink); border-bottom: 0.7px solid var(--ink); padding: 1.3mm 1.6mm; font-weight: 600;
+           vertical-align: bottom; }
+tbody td { padding: 1.0mm 1.6mm; border-bottom: 0.4px solid var(--hair); vertical-align: top; }
+tbody tr:last-child td { border-bottom: 1.2px solid var(--ink); }
+td[style*="right"], th[style*="right"] { text-align: right; }
+
+/* maths */
+.math { margin: 2.6mm 0 3.2mm 0; text-align: center; break-inside: avoid; }
+math { font-size: 1.02em; }
+
+/* references */
+ol.references { padding-left: 7mm; font-size: 9pt; text-align: left; hyphens: none; }
+ol.references li { margin-bottom: 1.3mm; }
+
+.pagebreak { break-before: page; page-break-before: always; }
+.note { font: 9pt/1.35 var(--sans); color: var(--ink-2); text-align: left; }
+
+</style>
+</head>
+<body>
+<header>
+<h1 class="title">FloodWatch: lightweight U-Nets for flood-water segmentation from Sentinel-1 radar</h1>
+<p class="subtitle">A controlled study of input channels, loss and encoder on Sen1Floods11, trained on a 4 GB laptop GPU</p>
+<p class="byline">Roopak Raam · Mini-project report, November 2026</p>
+</header>
+<h2 id="sec:intro"><span class="secnum">1</span> Introduction</h2>
+<p>Floods are the most frequent kind of disaster. Of the 7,348 major disaster events recorded worldwide between 2000 and 2019, 3,254 were floods [<a class="cite" href="#ref-undrr2020human">1</a>], and satellite records show that the share of the world’s population living in places that flood has grown [<a class="cite" href="#ref-tellman2021satellite">2</a>]. When a flood is under way, the first thing responders need is a map of where the water is. Satellites can provide one for a whole region within hours, if the water can be seen.</p>
+<p>Seeing it is the difficulty. Floods arrive with heavy cloud, and an optical satellite cannot see through cloud. Synthetic aperture radar (SAR) can. A radar satellite sends its own microwave pulses and records what is scattered back, so it works at night and through cloud. The Sentinel-1 mission images most land every 6 to 12 days at 10 m resolution and its data are free [<a class="cite" href="#ref-torres2012gmes">3</a>]. Calm water is smooth: it reflects the side-looking radar pulse away from the satellite, so open water appears dark in a radar image. This is the physical basis of every radar flood map.</p>
+<p>“Dark means water” is, however, only a rule of thumb. Tarmac, sand, radar shadow and some crops are dark too, while water roughened by wind or broken by vegetation can be as bright as land. Operational systems started from thresholds on the backscatter [<a class="cite" href="#ref-otsu1979threshold">4</a>, <a class="cite" href="#ref-bereczky2022sentinel">5</a>]; over the last years convolutional networks, above all U-Nets [<a class="cite" href="#ref-ronneberger2015unet">6</a>], have taken over because they can use the spatial context around a pixel. Sen1Floods11 [<a class="cite" href="#ref-bonafilia2020sen1floods11">7</a>] made this research comparable by publishing Sentinel-1 chips of eleven flood events with water masks, 446 of them labelled by hand.</p>
+<p>Much of the published work on this dataset uses large models: ResNet-50 encoders [<a class="cite" href="#ref-yadav2022attentive">8</a>], or foundation models with hundreds of millions of parameters [<a class="cite" href="#ref-jakubik2023foundation">9</a>, <a class="cite" href="#ref-schmalstieg2026distillation">10</a>]. This project asks the opposite question. It studies what a small network can do when it is trained from 252 hand-labelled chips on a laptop with a 4 GB GPU, and which design choices are worth their cost.</p>
+<p><strong>Research question.</strong> How well can a lightweight U-Net segment flood water in single-date Sentinel-1 imagery under these constraints, and which design choices matter? Four sub-questions structure the work:</p>
+<ul>
+<li><strong>RQ1, input channels.</strong> Does adding the VV band and the VV/VH ratio to the VH band help?</li>
+<li><strong>RQ2, loss.</strong> Water is a small minority of the pixels. Which loss copes best with that: binary cross-entropy (BCE), Dice, or their sum?</li>
+<li><strong>RQ3, encoder.</strong> Is a light MobileNetV2 encoder, with or without ImageNet weights, better than a small U-Net trained from nothing, and what does each cost in parameters, time and memory?</li>
+<li><strong>RQ4, generalisation.</strong> Does the performance hold on a flood (Bolivia) that the model has never seen?</li>
+</ul>
+<p><strong>Contributions.</strong></p>
+<ol>
+<li>A complete and reproducible pipeline for Sentinel-1 flood segmentation that runs on a 4 GB laptop GPU: 3 training runs of about 6 minutes each, with every number in this report generated from a saved result file.</li>
+<li>A controlled ablation of input channels, loss function and encoder, each with three random seeds and a frozen protocol in which the test data were scored once per run, together with the cost of each encoder.</li>
+<li>An error analysis that shows where and why the models fail, an honest comparison with two threshold baselines and with published results, and three practical findings that are easy to miss: (to be written).</li>
+</ol>
+<h2 id="sec:related"><span class="secnum">2</span> Related work</h2>
+<p><strong>Thresholding.</strong> The classical way to map water in a radar image is to threshold the backscatter, with the threshold chosen automatically, for instance by Otsu’s method, which picks the cut that best separates a histogram into two groups [<a class="cite" href="#ref-otsu1979threshold">4</a>]. Rule-based chains of this kind are still used operationally, and they remain a serious reference: Bereczky et al. benchmarked convolutional networks against such a chain for Sentinel-1 water and flood mapping [<a class="cite" href="#ref-bereczky2022sentinel">5</a>].</p>
+<p><strong>The dataset and its baseline.</strong> Sen1Floods11 [<a class="cite" href="#ref-bonafilia2020sen1floods11">7</a>] contains 4,831 Sentinel-1 chips of 512×512 pixels from eleven flood events. For 446 of them a water mask was drawn by hand; the others carry automatically generated (“weak”) labels. Its authors trained a fully convolutional network with a ResNet-50 backbone on the different label sets and compared it with thresholding. Two of their conclusions matter here: a network can beat a threshold on radar data, and many weak labels gave a better model than few hand labels. This project uses only the hand-labelled chips, so it works in the small-data regime in which the authors’ own network did less well.</p>
+<p><strong>Deep networks on Sen1Floods11.</strong> U-Net [<a class="cite" href="#ref-ronneberger2015unet">6</a>], an encoder–decoder with skip connections, is the standard segmentation architecture and most later work builds on it. Konapala et al. compared combinations of Sentinel-1 and Sentinel-2 inputs for U-Nets [<a class="cite" href="#ref-konapala2021exploring">11</a>]; their radar-only U-Net is listed with a test IoU of 0.45 in the comparison table of Yadav et al. [<a class="cite" href="#ref-yadav2022attentive">8</a>]. Katiyar et al. trained SegNet and U-Net models for near-real-time mapping [<a class="cite" href="#ref-katiyar2021near">12</a>]. Bai et al. fused Sentinel-1 and Sentinel-2 in a boundary-aware network [<a class="cite" href="#ref-bai2021enhancement">13</a>]. Closest to this project, Yadav et al. proposed an “Attentive U-Net” with a ResNet-50 encoder initialised from ImageNet that takes exactly the three inputs used as the default here (VV, VH and their ratio) and adds spatial and channel attention; it reaches a test IoU of 0.672, and a second network that also receives elevation and a permanent-water mask reaches 0.695 [<a class="cite" href="#ref-yadav2022attentive">8</a>]. The same authors later used a pre-flood image as a second input [<a class="cite" href="#ref-yadav2022siamese">14</a>].</p>
+<p><strong>More data instead of bigger labels.</strong> Patel et al. showed that self- and semi-supervised pre-training on unlabelled imagery improves flood segmentation, especially under geographic shift [<a class="cite" href="#ref-patel2021evaluating">15</a>]. Foundation models push this further: Prithvi, pre-trained on a large archive of optical imagery [<a class="cite" href="#ref-jakubik2023foundation">9</a>], reaches a water IoU of 0.80 on the Sen1Floods11 test chips after fine-tuning [<a class="cite" href="#ref-prithvi2023sen1floods11">16</a>], and Schmalstieg et al. distilled a 300-million-parameter successor into a 0.7-million-parameter student for edge devices [<a class="cite" href="#ref-schmalstieg2026distillation">10</a>]. The fine-tuned Prithvi model reads the optical Sentinel-2 bands of the same chips, not the radar bands, so such results show what is possible when the sky is clear rather than what radar alone can do.</p>
+<p><strong>Small models and classical learners.</strong> MobileNetV2 [<a class="cite" href="#ref-sandler2018mobilenetv2">17</a>] is a compact network built from depthwise-separable convolutions and inverted residual blocks, designed for phones; with ImageNet weights [<a class="cite" href="#ref-deng2009imagenet">18</a>] it is a common light encoder. At the other end, Iselborn et al. trained classical learners such as gradient-boosted trees on per-pixel features; with radar features alone their models reach a pooled IoU of about 0.5 on the test chips [<a class="cite" href="#ref-iselborn2023importance">19</a>], which is the level of a well-chosen threshold (<a class="xref" href="#sec:results">Section 5</a>). Their paper is also careful about a point that makes published numbers hard to compare: some papers pool all pixels of the test set before computing IoU (“total IoU”), others average the IoU of each chip (“mean IoU”), and the two can differ by almost a factor of two on this dataset.</p>
+<p><strong>How reliable are small differences?</strong> Phunjanna et al. re-evaluated surface-water models on Sen1Floods11 and found that close rankings change with the random seed and with how regions are weighted [<a class="cite" href="#ref-phunjanna2026controlled">20</a>]. That is the reason every configuration in this project is trained with three seeds, and why a difference is only called real when it exceeds the seed-to-seed spread.</p>
+<p><strong>Where this project sits.</strong> The studies above mostly add something: attention, extra inputs, more data, larger encoders. Few isolate the effect of the three most basic choices (input channels, loss, encoder) for a small model under a fixed protocol with repeated seeds, and few report what the choices cost on consumer hardware. That is the gap this project fills.</p>
+<h2 id="sec:data"><span class="secnum">3</span> Data</h2>
+<h3><span class="secnum">3.1</span> The hand-labelled subset of Sen1Floods11</h3>
+<p>All experiments use the 446 hand-labelled chips of Sen1Floods11, version 1.1 [<a class="cite" href="#ref-bonafilia2020sen1floods11">7</a>]. A chip is a 512×512-pixel tile of a Sentinel-1 scene at 10 m per pixel, about 5 km on a side, stored as a two-band image: the backscatter in decibels (dB) for the VV and the VH polarisation. Each chip comes with a mask of the same size in which every pixel is 1 (water), 0 (not water) or −1 (no data). The masks mark all surface water, permanent and flood water alike. For every event the dataset also holds a Sentinel-2 optical image taken within two days of the radar image, and the masks were drawn with the help of both [<a class="cite" href="#ref-bonafilia2020sen1floods11">7</a>, <a class="cite" href="#ref-yadav2022attentive">8</a>]. This matters later: water that is visible optically is not always dark in the radar image.</p>
+<p>The chips come from eleven flood events between 2016 and 2019 (<a class="xref" href="#tbl:events">Table 1</a>). The dataset’s official split is used unchanged: 252 training, 89 validation and 90 test chips drawn from ten of the events, and the 15 chips of the eleventh, Bolivia, held out completely. The test chips measure performance on new places within familiar floods; the Bolivia chips measure performance on a flood the model has never seen (RQ4). Before any modelling it was checked that all 446 image and label files exist, that the four split lists cover every chip exactly once, and that no Bolivia chip appears in the other three.</p>
+<div class="tablecaption" id="tbl:events"><b>Table 1.</b> The eleven flood events of the hand-labelled subset and the official split. Dates and orbit direction are taken from the dataset’s metadata file.</div>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Event</th>
+<th style="text-align:left">Radar image</th>
+<th style="text-align:left">Orbit</th>
+<th style="text-align:right">Hand-labelled chips</th>
+<th style="text-align:right">Train</th>
+<th style="text-align:right">Validation</th>
+<th style="text-align:right">Test</th>
+<th style="text-align:right">Held out</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Ghana</td>
+<td style="text-align:left">2018-09-18</td>
+<td style="text-align:left">ascending</td>
+<td style="text-align:right">53</td>
+<td style="text-align:right">31</td>
+<td style="text-align:right">11</td>
+<td style="text-align:right">11</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">India</td>
+<td style="text-align:left">2016-08-12</td>
+<td style="text-align:left">descending</td>
+<td style="text-align:right">68</td>
+<td style="text-align:right">40</td>
+<td style="text-align:right">14</td>
+<td style="text-align:right">14</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">Mekong</td>
+<td style="text-align:left">2018-08-05</td>
+<td style="text-align:left">ascending</td>
+<td style="text-align:right">30</td>
+<td style="text-align:right">18</td>
+<td style="text-align:right">6</td>
+<td style="text-align:right">6</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">Nigeria</td>
+<td style="text-align:left">2018-09-21</td>
+<td style="text-align:left">ascending</td>
+<td style="text-align:right">18</td>
+<td style="text-align:right">10</td>
+<td style="text-align:right">4</td>
+<td style="text-align:right">4</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">Pakistan</td>
+<td style="text-align:left">2017-06-28</td>
+<td style="text-align:left">descending</td>
+<td style="text-align:right">28</td>
+<td style="text-align:right">16</td>
+<td style="text-align:right">6</td>
+<td style="text-align:right">6</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">Paraguay</td>
+<td style="text-align:left">2018-10-31</td>
+<td style="text-align:left">descending</td>
+<td style="text-align:right">67</td>
+<td style="text-align:right">39</td>
+<td style="text-align:right">14</td>
+<td style="text-align:right">14</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">Somalia</td>
+<td style="text-align:left">2018-05-07</td>
+<td style="text-align:left">ascending</td>
+<td style="text-align:right">26</td>
+<td style="text-align:right">15</td>
+<td style="text-align:right">5</td>
+<td style="text-align:right">6</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">Spain</td>
+<td style="text-align:left">2019-09-17</td>
+<td style="text-align:left">descending</td>
+<td style="text-align:right">30</td>
+<td style="text-align:right">18</td>
+<td style="text-align:right">6</td>
+<td style="text-align:right">6</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">Sri-Lanka</td>
+<td style="text-align:left">2017-05-30</td>
+<td style="text-align:left">descending</td>
+<td style="text-align:right">42</td>
+<td style="text-align:right">24</td>
+<td style="text-align:right">9</td>
+<td style="text-align:right">9</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">USA</td>
+<td style="text-align:left">2019-05-22</td>
+<td style="text-align:left">ascending</td>
+<td style="text-align:right">69</td>
+<td style="text-align:right">41</td>
+<td style="text-align:right">14</td>
+<td style="text-align:right">14</td>
+<td style="text-align:right">–</td>
+</tr>
+<tr>
+<td style="text-align:left">Bolivia</td>
+<td style="text-align:left">2018-02-15</td>
+<td style="text-align:left">descending</td>
+<td style="text-align:right">15</td>
+<td style="text-align:right">–</td>
+<td style="text-align:right">–</td>
+<td style="text-align:right">–</td>
+<td style="text-align:right">15</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Total</strong></td>
+<td style="text-align:left"></td>
+<td style="text-align:left"></td>
+<td style="text-align:right"><strong>446</strong></td>
+<td style="text-align:right"><strong>252</strong></td>
+<td style="text-align:right"><strong>89</strong></td>
+<td style="text-align:right"><strong>90</strong></td>
+<td style="text-align:right"><strong>15</strong></td>
+</tr>
+</tbody>
+</table>
+<h3><span class="secnum">3.2</span> What the training data look like</h3>
+<p>All statistics that influenced a design decision were computed on the training chips only. <a class="xref" href="#fig:samples">Figure 1</a> shows six of them. Three properties of the data shape the rest of the project.</p>
+<figure id="fig:samples"><img src="../figures/eda/sample_chips.png" style="width:100%" alt=""><figcaption><b>Figure 1.</b> Six training chips from six events: VV, VH and the hand label. Both radar bands use the same fixed dB range in every panel. Open water is dark, more cleanly so in VH than in VV. The masks contain thin rivers and ragged shorelines only a few pixels wide.</figcaption></figure>
+<p><strong>Water is rare.</strong> Water covers 9.5% of the labelled training pixels. 32 of the 252 training chips contain no water at all and 159 contain less than 5%. A model that never predicts water would be about 90% accurate, so accuracy is not reported; and a loss that treats all pixels alike is dominated by the easy “not water” pixels, which is why the loss is one of the factors studied (RQ2).</p>
+<p><strong>One number does not separate water from land.</strong> <a class="xref" href="#fig:hist">Figure 2</a> shows the distribution of both bands for the two classes. Water is darker, but the distributions overlap: the shared area of the two normalised histograms is 0.34 in VH and 0.44 in VV. In VV the water distribution has a second hump that lies largely under the land distribution; the likely cause is water roughened by wind or mixed with vegetation, to which VV is sensitive. A threshold on VH is therefore a fair but limited baseline, and there is room for a model that looks at both bands and at the neighbourhood of a pixel (RQ1).</p>
+<figure id="fig:hist"><img src="../figures/eda/hist_vv_vh_water.png" style="width:92%" alt=""><figcaption><b>Figure 2.</b> Backscatter of the training pixels, water against not water, each class normalised to unit area. The classes overlap in both bands, less in VH than in VV.</figcaption></figure>
+<p><strong>Part of the data is missing.</strong> 13.3% of the training pixels have no label, and 2.0% of the radar pixels have no value (NaN), nearly always where the label is missing too. Unlabelled pixels are excluded from the loss and from every metric. A small number of pixels have a label but no radar value; the largest such case is one test chip whose radar image is entirely empty although a fifth of it is labelled as water. No method can classify such pixels from the image. They are kept in the reported scores, following the usual convention that every labelled pixel counts, and <a class="xref" href="#sec:results">Section 5</a> also gives the scores without them.</p>
+<p><a class="xref" href="#tbl:splits">Table 2</a> summarises the four splits. The water share differs between them, and between events it differs far more, so a score pooled over all pixels and a score averaged over chips will not agree; both are reported.</p>
+<div class="tablecaption" id="tbl:splits"><b>Table 2.</b> The four splits. Only the training column was used for design decisions; the other columns are label bookkeeping.</div>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Split</th>
+<th style="text-align:right">Chips</th>
+<th style="text-align:right">Events</th>
+<th style="text-align:right">Labelled pixels (millions)</th>
+<th style="text-align:right">Water share of labelled pixels</th>
+<th style="text-align:right">Pixels without label</th>
+<th style="text-align:right">Chips without water</th>
+<th style="text-align:right">Labelled pixels without radar value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Train</td>
+<td style="text-align:right">252</td>
+<td style="text-align:right">10</td>
+<td style="text-align:right">57.3</td>
+<td style="text-align:right">9.5%</td>
+<td style="text-align:right">13.3%</td>
+<td style="text-align:right">32</td>
+<td style="text-align:right">24,150</td>
+</tr>
+<tr>
+<td style="text-align:left">Validation</td>
+<td style="text-align:right">89</td>
+<td style="text-align:right">10</td>
+<td style="text-align:right">20.3</td>
+<td style="text-align:right">11.0%</td>
+<td style="text-align:right">13.0%</td>
+<td style="text-align:right">9</td>
+<td style="text-align:right">20,571</td>
+</tr>
+<tr>
+<td style="text-align:left">Test</td>
+<td style="text-align:right">90</td>
+<td style="text-align:right">10</td>
+<td style="text-align:right">20.5</td>
+<td style="text-align:right">12.5%</td>
+<td style="text-align:right">13.0%</td>
+<td style="text-align:right">6</td>
+<td style="text-align:right">73,408</td>
+</tr>
+<tr>
+<td style="text-align:left">Bolivia (held out)</td>
+<td style="text-align:right">15</td>
+<td style="text-align:right">1</td>
+<td style="text-align:right">2.9</td>
+<td style="text-align:right">15.9%</td>
+<td style="text-align:right">27.1%</td>
+<td style="text-align:right">0</td>
+<td style="text-align:right">43,381</td>
+</tr>
+</tbody>
+</table>
+<h3><span class="secnum">3.3</span> Preprocessing</h3>
+<p>Every chip goes through the same function, in training, in evaluation and in the inference demo:</p>
+<ol>
+<li>Both bands are clipped to [−35, 5] dB. This touches 0.45% of the training values, mostly very dark water in VH.</li>
+<li>A third channel is added, the VV/VH ratio. On the logarithmic dB scale a ratio is a difference, so the channel is VV − VH, computed from the clipped values.</li>
+<li>Each channel is standardised with the mean and standard deviation of the training chips (VV −10.39 ± 4.03 dB, VH −17.20 ± 4.55 dB, ratio 6.80 ± 3.31 dB). The validation and test chips play no part in these statistics.</li>
+<li>Missing radar values are set to 0, which after standardising is the average training pixel.</li>
+</ol>
+<p>Depending on the configuration the model receives VH alone, VV and VH, or all three channels.</p>
+<h2 id="sec:method"><span class="secnum">4</span> Method</h2>
+<h3><span class="secnum">4.1</span> Threshold baselines (experiment E0)</h3>
+<p>The simplest flood mapper is one rule: a pixel is water if its VH backscatter is below a threshold. Two thresholds were used.</p>
+<p><strong>Otsu (run R00, the planned baseline).</strong> Otsu’s method [<a class="cite" href="#ref-otsu1979threshold">4</a>] was applied once to the histogram of all VH values of the training chips, without labels, and gave −19.95 dB. A single global threshold was preferred to one threshold per chip because Otsu always splits a histogram in two: on the 32 training chips that contain no water, a per-chip threshold marks a median of 43% of the chip as water.</p>
+<p><strong>Tuned threshold (run R00b, an added reference).</strong> A check on the training and validation chips showed that Otsu’s cut is not the best one. The threshold with the highest IoU on the training labels is −23.60 dB. It was added as a second, stronger reference so that the networks are not compared only with a baseline that is easy to beat. It was fitted on training labels alone.</p>
+<h3><span class="secnum">4.2</span> U-Net with three encoders</h3>
+<p>A U-Net [<a class="cite" href="#ref-ronneberger2015unet">6</a>] has an encoder that reduces the image step by step to a small, information-rich representation, a decoder that brings it back to full size, and skip connections that hand the encoder’s fine detail to the decoder at each scale. All models here end in one sigmoid output per pixel, the probability of water, and accept any image size divisible by 32, so the same model is trained on 256×256 crops and applied to full 512×512 chips.</p>
+<ul>
+<li><strong>Scratch U-Net.</strong> Five levels with 16, 32, 64, 128 and 256 filters. Each level is two 3×3 convolutions, each followed by batch normalisation [<a class="cite" href="#ref-ioffe2015batch">21</a>] and ReLU. Max-pooling halves the resolution on the way down; on the way up the feature map is upsampled by two, concatenated with the skip connection and passed through the same pair of convolutions. 1.97 million parameters.</li>
+<li><strong>MobileNetV2 U-Net (the default).</strong> The encoder is MobileNetV2 [<a class="cite" href="#ref-sandler2018mobilenetv2">17</a>] up to its last block at 1/32 of the input size. Four intermediate feature maps, at 1/2, 1/4, 1/8 and 1/16 scale, serve as skip connections. The decoder has four blocks with 256, 128, 64 and 32 filters, built like the scratch decoder, and a final upsampling stage with 16 filters; MobileNetV2 halves the resolution in its very first layer, so there is no skip connection at full resolution. 5.42 million parameters, of which 3.58 million are in the decoder. The encoder weights are initialised randomly.</li>
+<li><strong>MobileNetV2 U-Net with ImageNet weights.</strong> The same network with the encoder initialised from ImageNet classification weights [<a class="cite" href="#ref-deng2009imagenet">18</a>]. This needs exactly three input channels, which the default input provides. The weights were learned on colour photographs; the network is given standardised radar channels instead and all layers are trained, so whether the weights still help is part of RQ3.</li>
+</ul>
+<h3><span class="secnum">4.3</span> Losses</h3>
+<p>Let <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mi>i</mi></msub></mrow></math> be the predicted water probability of pixel <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math>, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>y</mi><mi>i</mi></msub><mo>∈</mo><mo stretchy="false">{</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo stretchy="false">}</mo></mrow></math> its label, and <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>V</mi></mrow></math> the set of labelled pixels in a batch. Unlabelled pixels are left out of every sum.</p>
+<div class="math"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>&#x02112;</mi><mrow><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">C</mi><mi mathvariant="normal">E</mi></mrow></mrow></msub><mo>&#x0003D;</mo><mo>&#x02212;</mo><mfrac><mrow><mn>1</mn></mrow><mrow><mo stretchy="false">&#x0007C;</mo><mi>V</mi><mo stretchy="false">&#x0007C;</mo></mrow></mfrac><munder><mo>&#x02211;</mo><mrow><mi>i</mi><mo>&#x02208;</mo><mi>V</mi></mrow></munder><mo stretchy="true" fence="true" minsize="1.2em" maxsize="1.2em">[</mo><msub><mi>y</mi><mi>i</mi></msub><mi>log</mi><msub><mi>p</mi><mi>i</mi></msub><mo>&#x0002B;</mo><mo stretchy="false">&#x00028;</mo><mn>1</mn><mo>&#x02212;</mo><msub><mi>y</mi><mi>i</mi></msub><mo stretchy="false">&#x00029;</mo><mi>log</mi><mo stretchy="false">&#x00028;</mo><mn>1</mn><mo>&#x02212;</mo><msub><mi>p</mi><mi>i</mi></msub><mo stretchy="false">&#x00029;</mo><mo stretchy="true" fence="true" minsize="1.2em" maxsize="1.2em">]</mo></mrow></math></div>
+<div class="math"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>&#x02112;</mi><mrow><mrow><mi mathvariant="normal">D</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">e</mi></mrow></mrow></msub><mo>&#x0003D;</mo><mn>1</mn><mo>&#x02212;</mo><mfrac><mrow><mn>2</mn><msub><mo>&#x02211;</mo><mrow><mi>i</mi><mo>&#x02208;</mo><mi>V</mi></mrow></msub><msub><mi>p</mi><mi>i</mi></msub><msub><mi>y</mi><mi>i</mi></msub><mo>&#x0002B;</mo><mi>&#x003B5;</mi></mrow><mrow><msub><mo>&#x02211;</mo><mrow><mi>i</mi><mo>&#x02208;</mo><mi>V</mi></mrow></msub><msub><mi>p</mi><mi>i</mi></msub><mo>&#x0002B;</mo><msub><mo>&#x02211;</mo><mrow><mi>i</mi><mo>&#x02208;</mo><mi>V</mi></mrow></msub><msub><mi>y</mi><mi>i</mi></msub><mo>&#x0002B;</mo><mi>&#x003B5;</mi></mrow></mfrac><mo>&#x0002C;</mo><mspace width="2em" /><mi>&#x003B5;</mi><mo>&#x0003D;</mo><msup><mn>10</mn><mrow><mo>&#x02212;</mo><mn>6</mn></mrow></msup></mrow></math></div>
+<p>Binary cross-entropy judges every pixel separately, so with rare water it is dominated by land pixels. The Dice loss [<a class="cite" href="#ref-milletari2016vnet">22</a>] measures the overlap between predicted and true water and ignores how many land pixels were easy. The default is their sum, <math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>ℒ</mi><mrow><mrow><mi mathvariant="normal">B</mi><mi mathvariant="normal">C</mi><mi mathvariant="normal">E</mi></mrow></mrow></msub><mo>+</mo><msub><mi>ℒ</mi><mrow><mrow><mi mathvariant="normal">D</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">e</mi></mrow></mrow></msub></mrow></math>.</p>
+<h3><span class="secnum">4.4</span> Training</h3>
+<p>One epoch consists of 4 random 256×256 crops of every training chip, each randomly flipped and rotated by a multiple of 90°, with image and mask transformed identically: 1,008 crops, or 126 batches of 8. Models were trained with Adam [<a class="cite" href="#ref-kingma2015adam">23</a>] at a learning rate of 10⁻³ for at most 60 epochs. After every epoch the model was scored on the full validation chips. The validation water IoU drove three mechanisms: the learning rate was halved after 5 epochs without improvement (down to 10⁻⁵), training stopped after 15 epochs without improvement, and the weights of the best epoch were kept. Training used mixed precision (16-bit arithmetic inside the network, 32-bit for the output and the loss).</p>
+<p>These defaults were fixed after a five-epoch smoke test and a first full run that was inspected on validation data only (<a class="xref" href="#sec:implementation">Section 4.7</a>), then tagged in the code repository before any other model was trained.</p>
+<h3><span class="secnum">4.5</span> Metrics</h3>
+<p>With TP, FP and FN the numbers of true-positive, false-positive and false-negative water pixels among the labelled pixels, and a decision threshold of 0.5 on the predicted probability:</p>
+<div class="math"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mrow><mi mathvariant="normal">I</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">U</mi></mrow><mo>&#x0003D;</mo><mfrac><mrow><mi>T</mi><mi>P</mi></mrow><mrow><mi>T</mi><mi>P</mi><mo>&#x0002B;</mo><mi>F</mi><mi>P</mi><mo>&#x0002B;</mo><mi>F</mi><mi>N</mi></mrow></mfrac><mo>&#x0002C;</mo><mspace width="2em" /><mrow><mi mathvariant="normal">p</mi><mi mathvariant="normal">r</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">s</mi><mi mathvariant="normal">i</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">n</mi></mrow><mo>&#x0003D;</mo><mfrac><mrow><mi>T</mi><mi>P</mi></mrow><mrow><mi>T</mi><mi>P</mi><mo>&#x0002B;</mo><mi>F</mi><mi>P</mi></mrow></mfrac><mo>&#x0002C;</mo><mspace width="2em" /><mrow><mi mathvariant="normal">r</mi><mi mathvariant="normal">e</mi><mi mathvariant="normal">c</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">l</mi><mi mathvariant="normal">l</mi></mrow><mo>&#x0003D;</mo><mfrac><mrow><mi>T</mi><mi>P</mi></mrow><mrow><mi>T</mi><mi>P</mi><mo>&#x0002B;</mo><mi>F</mi><mi>N</mi></mrow></mfrac><mo>&#x0002C;</mo><mspace width="2em" /><msub><mi>F</mi><mn>1</mn></msub><mo>&#x0003D;</mo><mfrac><mrow><mn>2</mn><mspace width="0.167em" /><mi>T</mi><mi>P</mi></mrow><mrow><mn>2</mn><mspace width="0.167em" /><mi>T</mi><mi>P</mi><mo>&#x0002B;</mo><mi>F</mi><mi>P</mi><mo>&#x0002B;</mo><mi>F</mi><mi>N</mi></mrow></mfrac></mrow></math></div>
+<p>The primary metric is the <strong>pooled water IoU</strong>: TP, FP and FN are summed over all chips of a split before dividing once. Precision, recall and F1 are pooled in the same way. As a secondary metric the <strong>mean per-chip IoU</strong> is the plain average of the chips’ individual IoU values; chips with no water in the label and none predicted have an undefined IoU and are left out of that average. The two metrics answer different questions. The pooled IoU is dominated by chips with much water; the per-chip mean gives a chip with a small pond the same weight as a chip that is half flooded.</p>
+<p>The same tested metric code scores the threshold baselines and every network.</p>
+<h3><span class="secnum">4.6</span> Experimental design and protocol</h3>
+<p><a class="xref" href="#tbl:design">Table 3</a> lists the runs. Each study changes one factor and keeps everything else at the default, which serves as the shared reference of all three studies. Every configuration was trained three times with seeds 0, 1 and 2; the seed fixes the initial weights and the sequence of crops.</p>
+<div class="tablecaption" id="tbl:design"><b>Table 3.</b> The experiments. Each study varies one factor; the default configuration (bold) is shared.</div>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Study</th>
+<th style="text-align:left">Question</th>
+<th style="text-align:left">Configurations</th>
+<th style="text-align:left">Runs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">E0</td>
+<td style="text-align:left">Is learning better than a threshold?</td>
+<td style="text-align:left">Otsu on VH; tuned VH threshold (added)</td>
+<td style="text-align:left">R00, R00b</td>
+</tr>
+<tr>
+<td style="text-align:left">E1</td>
+<td style="text-align:left">RQ1, input channels</td>
+<td style="text-align:left">VH · VV+VH · <strong>VV+VH+ratio</strong></td>
+<td style="text-align:left">R04–R09, R01–R03</td>
+</tr>
+<tr>
+<td style="text-align:left">E2</td>
+<td style="text-align:left">RQ2, loss</td>
+<td style="text-align:left">BCE · Dice · <strong>BCE+Dice</strong></td>
+<td style="text-align:left">R10–R15, R01–R03</td>
+</tr>
+<tr>
+<td style="text-align:left">E3</td>
+<td style="text-align:left">RQ3, encoder</td>
+<td style="text-align:left">Scratch U-Net · <strong>MobileNetV2</strong> · MobileNetV2 + ImageNet</td>
+<td style="text-align:left">R16–R21, R01–R03</td>
+</tr>
+</tbody>
+</table>
+<p>Three rules were followed throughout.</p>
+<ol>
+<li><strong>Choices are made on validation data only.</strong> Stopping, checkpoint selection and the choice of the “best” model use the 89 validation chips.</li>
+<li><strong>Test and Bolivia are scored once per finished run.</strong> No setting was changed after a test score had been seen. The first model was inspected on validation data, the defaults were frozen, and only then was it scored on test.</li>
+<li><strong>Only the factor under study changes.</strong> Splits, seeds and all other settings are identical across configurations; a check at the start of each experiment confirms that the training and scoring code is byte-identical to the frozen version.</li>
+</ol>
+<p><strong>Reading differences.</strong> Results are reported as mean ± standard deviation over the three seeds. A difference between two configurations is treated as real only if it is larger than the larger of their two standard deviations. For the main model, a second kind of uncertainty is also given: a 95% bootstrap interval obtained by resampling the test chips, which shows how much the score depends on which chips happen to be in the test set.</p>
+<h3 id="sec:implementation"><span class="secnum">4.7</span> Implementation</h3>
+<p>The code is written in Python with TensorFlow 2.21.0 and Keras 3.15.1 and ran on a laptop with an NVIDIA GeForce RTX 3050 Laptop GPU (4 GB) under WSL2 with 7.5 GB of RAM. Every run trains in its own process and writes its full configuration, its training history, the per-chip scores and the code version next to the model, so each number in this report can be traced to a file. Two findings from the smoke test shaped the set-up and are worth passing on.</p>
+<p><strong>Compilation.</strong> Compiling the training step with XLA, TensorFlow’s just-in-time compiler, reduced the time per step from 414 ms to 62 ms on this machine. Without it the planned runs would not have fitted the time available.</p>
+<p><strong>Batch-normalisation momentum.</strong> The MobileNetV2 that ships with Keras uses a batch-normalisation momentum of 0.999, which means the running statistics used at validation and test time need thousands of updates to catch up with the weights. An epoch here has 126 updates. In the smoke test the training loss fell normally while the validation IoU stayed at exactly 0.00 for all five epochs; with a momentum of 0.99 in every layer it reached 0.60 (<a class="xref" href="#fig:bn">Figure 3</a>). Because checkpointing, learning-rate reduction and early stopping all depend on the validation score, the momentum was set to 0.99 for every model. Anyone who trains a Keras application model from scratch with few updates per epoch is likely to meet the same problem.</p>
+<figure id="fig:bn"><img src="../figures/smoke_test_bn_momentum.png" style="width:88%" alt=""><figcaption><b>Figure 3.</b> The same five-epoch training run with two batch-normalisation momenta. Training behaves alike in both; the validation score only follows when the running statistics can keep up.</figcaption></figure>
+<h2 id="sec:results"><span class="secnum">5</span> Results</h2>
+<p>(to be written)</p>
+<h2>References</h2>
+<ol class="references">
+<li id="ref-undrr2020human">Centre for Research on the Epidemiology of Disasters (CRED) and UN Office for Disaster Risk Reduction (UNDRR). The human cost of disasters: an overview of the last 20 years (2000–2019). <em>UNDRR</em>, 2020. <a href="https://www.undrr.org/publication/human-cost-disasters-overview-last-20-years-2000-2019">https://www.undrr.org/publication/human-cost-disasters-overview-last-20-years-2000-2019</a></li>
+<li id="ref-tellman2021satellite">B. Tellman, J. A. Sullivan, C. Kuhn, A. J. Kettner, C. S. Doyle, G. R. Brakenridge, T. A. Erickson, and D. A. Slayback. Satellite imaging reveals increased proportion of population exposed to floods. <em>Nature</em>, 596(7870):80–86, 2021. doi:<a href="https://doi.org/10.1038/s41586-021-03695-w">10.1038/s41586-021-03695-w</a></li>
+<li id="ref-torres2012gmes">R. Torres, P. Snoeij, D. Geudtner, D. Bibby, M. Davidson, E. Attema, P. Potin, B. Rommen, N. Floury, M. Brown et al. GMES Sentinel-1 mission. <em>Remote Sensing of Environment</em>, 120:9–24, 2012. doi:<a href="https://doi.org/10.1016/j.rse.2011.05.028">10.1016/j.rse.2011.05.028</a></li>
+<li id="ref-otsu1979threshold">N. Otsu. A Threshold Selection Method from Gray-Level Histograms. <em>IEEE Transactions on Systems, Man, and Cybernetics</em>, 9(1):62–66, 1979. doi:<a href="https://doi.org/10.1109/TSMC.1979.4310076">10.1109/TSMC.1979.4310076</a></li>
+<li id="ref-bereczky2022sentinel">M. Bereczky, M. Wieland, C. Krullikowski, S. Martinis, and S. Plank. Sentinel-1-Based Water and Flood Mapping: Benchmarking Convolutional Neural Networks Against an Operational Rule-Based Processing Chain. <em>IEEE Journal of Selected Topics in Applied Earth Observations and Remote Sensing</em>, 15:2023–2036, 2022. doi:<a href="https://doi.org/10.1109/JSTARS.2022.3152127">10.1109/JSTARS.2022.3152127</a></li>
+<li id="ref-ronneberger2015unet">O. Ronneberger, P. Fischer, and T. Brox. U-Net: Convolutional Networks for Biomedical Image Segmentation. <em>Medical Image Computing and Computer-Assisted Intervention (MICCAI)</em>, 9351:234–241, 2015. doi:<a href="https://doi.org/10.1007/978-3-319-24574-4_28">10.1007/978-3-319-24574-4_28</a></li>
+<li id="ref-bonafilia2020sen1floods11">D. Bonafilia, B. Tellman, T. Anderson, and E. Issenberg. Sen1Floods11: A Georeferenced Dataset to Train and Test Deep Learning Flood Algorithms for Sentinel-1. <em>IEEE/CVF Conference on Computer Vision and Pattern Recognition Workshops (CVPRW)</em>, pp. 835–845, 2020. doi:<a href="https://doi.org/10.1109/CVPRW50498.2020.00113">10.1109/CVPRW50498.2020.00113</a></li>
+<li id="ref-yadav2022attentive">R. Yadav, A. Nascetti, and Y. Ban. Deep attentive fusion network for flood detection on uni-temporal Sentinel-1 data. <em>Frontiers in Remote Sensing</em>, 3:1060144, 2022. doi:<a href="https://doi.org/10.3389/frsen.2022.1060144">10.3389/frsen.2022.1060144</a></li>
+<li id="ref-jakubik2023foundation">J. Jakubik, S. Roy, C. E. Phillips, P. Fraccaro, D. Godwin, B. Zadrozny, D. Szwarcman, C. Gomes et al. Foundation Models for Generalist Geospatial Artificial Intelligence. arXiv preprint arXiv:2310.18660, 2023.</li>
+<li id="ref-schmalstieg2026distillation">F. Schmalstieg, K. Mueller, and W. Samek. Cross-Architecture Foundation-Model Distillation for Edge Flood Segmentation. arXiv preprint arXiv:2609.20441, 2026.</li>
+<li id="ref-konapala2021exploring">G. Konapala, S. V. Kumar, and S. K. Ahmad. Exploring Sentinel-1 and Sentinel-2 diversity for flood inundation mapping using deep learning. <em>ISPRS Journal of Photogrammetry and Remote Sensing</em>, 180:163–173, 2021. doi:<a href="https://doi.org/10.1016/j.isprsjprs.2021.08.016">10.1016/j.isprsjprs.2021.08.016</a></li>
+<li id="ref-katiyar2021near">V. Katiyar, N. Tamkuan, and M. Nagai. Near-Real-Time Flood Mapping Using Off-the-Shelf Models with SAR Imagery and Deep Learning. <em>Remote Sensing</em>, 13(12):2334, 2021. doi:<a href="https://doi.org/10.3390/rs13122334">10.3390/rs13122334</a></li>
+<li id="ref-bai2021enhancement">Y. Bai, W. Wu, Z. Yang, J. Yu, B. Zhao, X. Liu, H. Yang, E. Mas, and S. Koshimura. Enhancement of Detecting Permanent Water and Temporary Water in Flood Disasters by Fusing Sentinel-1 and Sentinel-2 Imagery Using Deep Learning Algorithms: Demonstration of Sen1Floods11 Benchmark Datasets. <em>Remote Sensing</em>, 13(11):2220, 2021. doi:<a href="https://doi.org/10.3390/rs13112220">10.3390/rs13112220</a></li>
+<li id="ref-yadav2022siamese">R. Yadav, A. Nascetti, and Y. Ban. Attentive Dual Stream Siamese U-net for Flood Detection on Multi-temporal Sentinel-1 Data. <em>IEEE International Geoscience and Remote Sensing Symposium (IGARSS)</em>, 2022. doi:<a href="https://doi.org/10.1109/IGARSS46834.2022.9883132">10.1109/IGARSS46834.2022.9883132</a></li>
+<li id="ref-patel2021evaluating">C. Patel, S. Sharma, V. J. Pasquarella, and V. Gulshan. Evaluating Self and Semi-Supervised Methods for Remote Sensing Segmentation Tasks. arXiv preprint arXiv:2111.10079, 2021.</li>
+<li id="ref-prithvi2023sen1floods11">J. Jakubik, P. Fraccaro, D. Oliveira Borges, M. Muszynski, K. Weldemariam, B. Zadrozny, R. Ganti, and K. Mukkavilli. Prithvi 100M flood mapping: model card of Prithvi-EO-1.0-100M-sen1floods11. Hugging Face, <a href="https://huggingface.co/ibm-nasa-geospatial/Prithvi-100M-sen1floods11">https://huggingface.co/ibm-nasa-geospatial/Prithvi-100M-sen1floods11</a>, 2023. doi:<a href="https://doi.org/10.57967/hf/0973">10.57967/hf/0973</a></li>
+<li id="ref-sandler2018mobilenetv2">M. Sandler, A. Howard, M. Zhu, A. Zhmoginov, and L.-C. Chen. MobileNetV2: Inverted Residuals and Linear Bottlenecks. <em>IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)</em>, pp. 4510–4520, 2018. doi:<a href="https://doi.org/10.1109/CVPR.2018.00474">10.1109/CVPR.2018.00474</a></li>
+<li id="ref-deng2009imagenet">J. Deng, W. Dong, R. Socher, L.-J. Li, K. Li, and L. Fei-Fei. ImageNet: A Large-Scale Hierarchical Image Database. <em>IEEE Conference on Computer Vision and Pattern Recognition (CVPR)</em>, pp. 248–255, 2009. doi:<a href="https://doi.org/10.1109/CVPR.2009.5206848">10.1109/CVPR.2009.5206848</a></li>
+<li id="ref-iselborn2023importance">K. Iselborn, M. Stricker, T. Miyamoto, M. Nuske, and A. Dengel. On the Importance of Feature Representation for Flood Mapping using Classical Machine Learning Approaches. arXiv preprint arXiv:2303.00691, 2023.</li>
+<li id="ref-phunjanna2026controlled">K. Phunjanna, K. Karacs, and C. Ngamkhanong. A Controlled Evaluation of Model Rankings and Input Reliance in Surface Water Segmentation. arXiv preprint arXiv:2608.30895, 2026.</li>
+<li id="ref-ioffe2015batch">S. Ioffe and C. Szegedy. Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift. <em>International Conference on Machine Learning (ICML)</em>, pp. 448–456, 2015.</li>
+<li id="ref-milletari2016vnet">F. Milletari, N. Navab, and S.-A. Ahmadi. V-Net: Fully Convolutional Neural Networks for Volumetric Medical Image Segmentation. <em>International Conference on 3D Vision (3DV)</em>, pp. 565–571, 2016. doi:<a href="https://doi.org/10.1109/3DV.2016.79">10.1109/3DV.2016.79</a></li>
+<li id="ref-kingma2015adam">D. P. Kingma and J. Ba. Adam: A Method for Stochastic Optimization. <em>International Conference on Learning Representations (ICLR)</em>, 2015.</li>
+</ol>
+
+</body>
+</html>

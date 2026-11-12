@@ -2,6 +2,7 @@
 
 The Markdown source contains no hand-typed results. Numbers and tables are pulled in at build time:
 
+    {{include:path}}    another Markdown file (the sections live in report/sections/)
     {{key}}             a value from report/generated/numbers.json   (written by src/report_assets.py from results/)
     {{table:name}}      report/generated/tables/<name>.md             (same script)
     [@key] [@a; @b]     numbered citations, reference list from report/references.bib at {{references}}
@@ -157,6 +158,15 @@ class Builder:
             self.text = self.text[m.end():]
         return meta
 
+    def include_files(self):
+        """{{include:sections/01_introduction.md}} -> the content of that file (relative to report/)."""
+        def repl(m):
+            path = REPORT_DIR / m.group(1)
+            if not path.exists():
+                self.fail(f"included file {m.group(1)!r} not found")
+            return path.read_text().strip()
+        self.text = re.sub(r"\{\{include:([\w./-]+)\}\}", repl, self.text)
+
     def include_tables(self):
         def repl(m):
             path = GENERATED / "tables" / f"{m.group(1)}.md"
@@ -260,6 +270,7 @@ class Builder:
         from markdown_it import MarkdownIt
 
         meta = self.front_matter()
+        self.include_files()
         self.include_tables()
         self.fill_numbers()
         self.number_things()

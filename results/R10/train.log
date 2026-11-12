@@ -1,0 +1,47 @@
+epoch  1/60 | loss 0.3686  iou 0.3568 | val_loss 1.0770  val_iou 0.1102 | lr 1.0e-03 | 171.3s *
+epoch  2/60 | loss 0.2382  iou 0.3574 | val_loss 0.2175  val_iou 0.4108 | lr 1.0e-03 |   7.8s *
+epoch  3/60 | loss 0.2006  iou 0.4063 | val_loss 0.2560  val_iou 0.3343 | lr 1.0e-03 |   7.9s
+epoch  4/60 | loss 0.1783  iou 0.4531 | val_loss 0.2207  val_iou 0.4069 | lr 1.0e-03 |   7.6s
+epoch  5/60 | loss 0.1772  iou 0.4153 | val_loss 0.1897  val_iou 0.3784 | lr 1.0e-03 |   7.7s
+epoch  6/60 | loss 0.1687  iou 0.4253 | val_loss 0.1465  val_iou 0.5693 | lr 1.0e-03 |   7.6s *
+epoch  7/60 | loss 0.1555  iou 0.4592 | val_loss 0.1616  val_iou 0.5431 | lr 1.0e-03 |   7.8s
+epoch  8/60 | loss 0.1523  iou 0.5220 | val_loss 0.1910  val_iou 0.5895 | lr 1.0e-03 |   7.7s *
+epoch  9/60 | loss 0.1481  iou 0.5218 | val_loss 0.2389  val_iou 0.5827 | lr 1.0e-03 |   8.0s
+epoch 10/60 | loss 0.1465  iou 0.5232 | val_loss 0.1398  val_iou 0.5423 | lr 1.0e-03 |   7.7s
+epoch 11/60 | loss 0.1401  iou 0.5338 | val_loss 0.1522  val_iou 0.5130 | lr 1.0e-03 |   7.8s
+epoch 12/60 | loss 0.1388  iou 0.5495 | val_loss 0.1524  val_iou 0.5161 | lr 1.0e-03 |   7.8s
+epoch 13/60 | loss 0.1505  iou 0.4989 | val_loss 0.1609  val_iou 0.4833 | lr 1.0e-03 |   7.9s
+epoch 14/60 | loss 0.1397  iou 0.5118 | val_loss 0.1469  val_iou 0.5619 | lr 5.0e-04 |   7.9s
+epoch 15/60 | loss 0.1316  iou 0.5687 | val_loss 0.1387  val_iou 0.5689 | lr 5.0e-04 |   7.9s
+epoch 16/60 | loss 0.1257  iou 0.5811 | val_loss 0.1343  val_iou 0.5642 | lr 5.0e-04 |   7.9s
+epoch 17/60 | loss 0.1300  iou 0.5536 | val_loss 0.1557  val_iou 0.5652 | lr 5.0e-04 |   8.0s
+epoch 18/60 | loss 0.1327  iou 0.5783 | val_loss 0.1408  val_iou 0.5976 | lr 5.0e-04 |   8.0s *
+epoch 19/60 | loss 0.1281  iou 0.5673 | val_loss 0.1409  val_iou 0.5924 | lr 5.0e-04 |   8.2s
+epoch 20/60 | loss 0.1303  iou 0.5805 | val_loss 0.1430  val_iou 0.5601 | lr 5.0e-04 |   7.9s
+epoch 21/60 | loss 0.1270  iou 0.5861 | val_loss 0.1361  val_iou 0.6113 | lr 5.0e-04 |   7.9s *
+epoch 22/60 | loss 0.1247  iou 0.5843 | val_loss 0.1503  val_iou 0.5391 | lr 5.0e-04 |   8.2s
+epoch 23/60 | loss 0.1323  iou 0.5740 | val_loss 0.1298  val_iou 0.5975 | lr 5.0e-04 |   7.9s
+epoch 24/60 | loss 0.1262  iou 0.5916 | val_loss 0.1244  val_iou 0.6141 | lr 5.0e-04 |   8.0s *
+epoch 25/60 | loss 0.1292  iou 0.5802 | val_loss 0.1443  val_iou 0.5250 | lr 5.0e-04 |   8.2s
+epoch 26/60 | loss 0.1369  iou 0.5508 | val_loss 0.1345  val_iou 0.5582 | lr 5.0e-04 |   7.9s
+epoch 27/60 | loss 0.1391  iou 0.5500 | val_loss 0.1419  val_iou 0.5299 | lr 5.0e-04 |   8.0s
+epoch 28/60 | loss 0.1313  iou 0.5713 | val_loss 0.1574  val_iou 0.5394 | lr 5.0e-04 |   8.1s
+epoch 29/60 | loss 0.1312  iou 0.5715 | val_loss 0.1291  val_iou 0.6029 | lr 5.0e-04 |   8.1s
+epoch 30/60 | loss 0.1248  iou 0.5780 | val_loss 0.1981  val_iou 0.2662 | lr 2.5e-04 |   8.1s
+epoch 31/60 | loss 0.1174  iou 0.6040 | val_loss 0.1422  val_iou 0.5300 | lr 2.5e-04 |   8.1s
+epoch 32/60 | loss 0.1297  iou 0.5738 | val_loss 0.1247  val_iou 0.6198 | lr 2.5e-04 |   8.1s *
+epoch 33/60 | loss 0.1195  iou 0.5999 | val_loss 0.1449  val_iou 0.5152 | lr 2.5e-04 |   8.2s
+epoch 34/60 | loss 0.1189  iou 0.6051 | val_loss 0.1703  val_iou 0.4449 | lr 2.5e-04 |   8.1s
+epoch 35/60 | loss 0.1203  iou 0.6012 | val_loss 0.1455  val_iou 0.5425 | lr 2.5e-04 |   8.1s
+epoch 36/60 | loss 0.1151  iou 0.6123 | val_loss 0.1722  val_iou 0.4560 | lr 2.5e-04 |   8.1s
+epoch 37/60 | loss 0.1168  iou 0.6071 | val_loss 0.1523  val_iou 0.5050 | lr 2.5e-04 |   8.1s
+epoch 38/60 | loss 0.1164  iou 0.6025 | val_loss 0.1454  val_iou 0.5510 | lr 1.3e-04 |   8.1s
+epoch 39/60 | loss 0.1191  iou 0.6027 | val_loss 0.1527  val_iou 0.5033 | lr 1.3e-04 |   8.0s
+epoch 40/60 | loss 0.1172  iou 0.5928 | val_loss 0.1282  val_iou 0.5908 | lr 1.3e-04 |   8.1s
+epoch 41/60 | loss 0.1151  iou 0.6172 | val_loss 0.1313  val_iou 0.5857 | lr 1.3e-04 |   8.1s
+epoch 42/60 | loss 0.1161  iou 0.6036 | val_loss 0.1399  val_iou 0.5606 | lr 1.3e-04 |   8.1s
+epoch 43/60 | loss 0.1115  iou 0.6078 | val_loss 0.1554  val_iou 0.5184 | lr 6.3e-05 |   8.1s
+epoch 44/60 | loss 0.1105  iou 0.6366 | val_loss 0.1430  val_iou 0.5669 | lr 6.3e-05 |   8.2s
+epoch 45/60 | loss 0.1169  iou 0.6115 | val_loss 0.1344  val_iou 0.5858 | lr 6.3e-05 |   8.1s
+epoch 46/60 | loss 0.1104  iou 0.6231 | val_loss 0.1441  val_iou 0.5714 | lr 6.3e-05 |   8.3s
+epoch 47/60 | loss 0.1120  iou 0.6187 | val_loss 0.1343  val_iou 0.5857 | lr 6.3e-05 |   8.1s

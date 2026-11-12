@@ -36,5 +36,52 @@
     },
     "n_valid_px": 20294725,
     "n_valid_px_no_sar": 20571
-  }
+  },
+  "test": {
+    "n_chips": 90,
+    "iou": 0.6681256161725001,
+    "precision": 0.852007339430197,
+    "recall": 0.7558432033657287,
+    "f1": 0.8010495249218803,
+    "mean_chip_iou": 0.38588511990634244,
+    "chips_in_mean": 87,
+    "chips_skipped": 3,
+    "tp": 1939570,
+    "fp": 336901,
+    "fn": 626531,
+    "observed_only": {
+      "iou": 0.6799040203320367,
+      "precision": 0.8519900185997831,
+      "recall": 0.770966533704863,
+      "f1": 0.8094557928347027,
+      "mean_chip_iou": 0.3945288297708594
+    },
+    "n_valid_px": 20517367,
+    "n_valid_px_no_sar": 73408,
+    "inference_ms_per_chip": 10.54
+  },
+  "bolivia": {
+    "n_chips": 15,
+    "iou": 0.6547289795094378,
+    "precision": 0.8890204656721655,
+    "recall": 0.7130043265679412,
+    "f1": 0.7913428574914295,
+    "mean_chip_iou": 0.3807713486184657,
+    "chips_in_mean": 15,
+    "chips_skipped": 0,
+    "tp": 324320,
+    "fp": 40486,
+    "fn": 130544,
+    "observed_only": {
+      "iou": 0.6626261427287965,
+      "precision": 0.8981118572700568,
+      "recall": 0.7164865755995229,
+      "f1": 0.7970837528649186,
+      "mean_chip_iou": 0.3881562014931914
+    },
+    "n_valid_px": 2867815,
+    "n_valid_px_no_sar": 43381,
+    "inference_ms_per_chip": 15.8
+  },
+  "evaluated_utc": "2026-11-11T13:12:46+00:00"
 }
